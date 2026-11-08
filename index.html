@@ -83,6 +83,10 @@
   .cfg .x{width:34px}
   .hint{color:var(--muted);font-size:13px}
 
+  .sync{font-size:12px;padding:3px 8px;border-radius:99px;background:#e2e8f0;color:#334155;white-space:nowrap}
+  .sync.online{background:#dcfce7;color:#166534}
+  .sync.pending{background:#fef3c7;color:#92400e}
+  .sync.off{background:#fee2e2;color:#991b1b}
   .more{display:contents}
   #menuBtn{display:none}
   .chess td.start{background:#a5b4fc!important}
@@ -133,6 +137,7 @@
   <h1>Гость · шахматка</h1>
   <div class="nav">
     <b id="monthTitle"></b>
+    <span id="syncStatus" class="sync" hidden></span>
   </div>
   <div class="actions">
     <button id="newBtn" class="primary">+ Бронь</button>
@@ -142,6 +147,7 @@
       <button id="exportBtn">Экспорт</button>
       <button id="importBtn">Импорт</button>
       <button id="settingsBtn">Настройки</button>
+      <button id="logoutBtn" hidden>Выйти</button>
     </div>
     <input type="file" id="importFile" accept="application/json" hidden>
   </div>
@@ -158,6 +164,20 @@
   </div>
   <div class="wrap"><table class="chess" id="chess"></table></div>
 </main>
+
+<!-- Вход в общую базу -->
+<div class="backdrop" id="loginBackdrop">
+  <div class="modal" style="max-width:380px">
+    <h2>Вход</h2>
+    <p class="hint" style="margin-top:0">Общая шахматка для всех устройств. Войдите один раз — устройство запомнит вход.</p>
+    <form id="loginForm">
+      <label>Почта<input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label>Пароль<input id="loginPass" type="password" autocomplete="current-password" required></label>
+      <p id="loginError" style="color:var(--debt);font-size:14px;min-height:18px;margin:0 0 10px"></p>
+      <div class="modal-actions"><button class="primary" type="submit" id="loginBtn">Войти</button></div>
+    </form>
+  </div>
+</div>
 
 <!-- Окно брони -->
 <div class="backdrop" id="backdrop">
@@ -253,6 +273,31 @@ function loadState(){
 function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 let state = loadState();
+
+/* Все изменения данных — только через store.
+   Без облака пишет в браузер; cloud.js подменяет методы на запись в общую базу. */
+const store = {
+  cloud: false,
+  upsert(b){
+    const i = state.bookings.findIndex(x => x.id === b.id);
+    if (i >= 0) state.bookings[i] = b; else state.bookings.push(b);
+    saveState(); renderAll();
+  },
+  remove(id){
+    state.bookings = state.bookings.filter(x => x.id !== id);
+    saveState(); renderAll();
+  },
+  setRooms(rooms){
+    const nums = rooms.map(r => r.num);
+    state.rooms = rooms;
+    state.bookings = state.bookings.filter(b => nums.includes(b.room));
+    saveState(); renderAll();
+  },
+  replaceAll(s){
+    state = { rooms: s.rooms, bookings: s.bookings };
+    saveState(); renderAll();
+  }
+};
 const now = new Date();
 /* Шахматка только на январь: ближайший январь (текущий, если сейчас январь) */
 const view = { y: now.getMonth() === 0 ? now.getFullYear() : now.getFullYear() + 1, m: 0 };
@@ -508,18 +553,16 @@ $('mSave').onclick = () => {
     alert(`Номер ${b.room} уже занят: ${clash.guest}, ${fmt(clash.start)} → ${fmt(clash.end)}`);
     return;
   }
-  if (editId){
-    Object.assign(state.bookings.find(x => x.id === editId), b);
-  } else {
-    state.bookings.push({ id: uid(), ...b });
-  }
-  saveState(); closeModal(); renderAll();
+  const id = editId || uid();
+  closeModal();
+  store.upsert({ id, ...b });
 };
 
 $('mDelete').onclick = () => {
   if (!confirm('Удалить эту бронь?')) return;
-  state.bookings = state.bookings.filter(x => x.id !== editId);
-  saveState(); closeModal(); renderAll();
+  const id = editId;
+  closeModal();
+  store.remove(id);
 };
 
 /* =========================================================
@@ -571,16 +614,13 @@ $('cfgSave').onclick = () => {
   const lost = state.bookings.filter(b => !nums.includes(b.room));
   if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
 
-  state.rooms = draft.rooms;
-  state.bookings = state.bookings.filter(b => nums.includes(b.room));
-  saveState();
   settingsBackdrop.classList.remove('open');
-  renderAll();
+  store.setRooms(draft.rooms);
 };
 $('cfgReset').onclick = () => {
   if (!confirm('Удалить все брони и вернуть номера по умолчанию? Это нельзя отменить.')) return;
-  state = structuredClone(DEFAULT_STATE);
-  saveState(); settingsBackdrop.classList.remove('open'); renderAll();
+  settingsBackdrop.classList.remove('open');
+  store.replaceAll(structuredClone(DEFAULT_STATE));
 };
 
 /* =========================================================
@@ -602,8 +642,7 @@ $('importFile').onchange = e => {
     const data = JSON.parse(txt);
     if (!validState(data)) throw new Error();
     if (!confirm('Заменить текущие данные данными из файла?')) return;
-    state = { rooms: data.rooms, bookings: data.bookings };
-    saveState(); renderAll();
+    store.replaceAll({ rooms: data.rooms, bookings: data.bookings });
   }).catch(() => alert('Не удалось прочитать файл'));
   e.target.value = '';
 };
@@ -629,5 +668,7 @@ settingsBackdrop.addEventListener('click', e => {
    ========================================================= */
 renderAll();
 </script>
+<script src="firebase-config.js"></script>
+<script type="module" src="cloud.js"></script>
 </body>
 </html>
