@@ -3,112 +3,139 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Гость — учёт номеров</title>
+<title>Гость — шахматка бронирования</title>
 <style>
   :root{
-    --bg:#f4f6fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
-    --accent:#4f46e5; --free:#059669; --booked:#d97706; --busy:#dc2626;
+    --bg:#f4f6fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#cbd5e1;
+    --head:#8eb4e3; --cat:#b8cfee; --sun:#dce6f4; --today:#fef3c7;
+    --accent:#2f5fa7; --booked:#f59e0b; --in:#16a34a; --out:#94a3b8; --debt:#dc2626;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
-  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
-         padding:16px 24px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-  h1{margin:0;font-size:22px}
-  h1 span{color:var(--accent)}
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+         padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:20px}
+  .nav{display:flex;align-items:center;gap:8px}
+  .nav b{min-width:150px;text-align:center;font-size:18px;text-transform:uppercase}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
   button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);
-         padding:8px 14px;border-radius:8px;cursor:pointer}
+         padding:6px 12px;border-radius:6px;cursor:pointer}
   button:hover{border-color:var(--accent)}
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  button.danger{color:var(--busy);border-color:#fecaca}
-  main{max-width:1200px;margin:0 auto;padding:20px 24px 40px}
+  button.danger{color:var(--debt);border-color:#fecaca}
+  main{padding:14px 20px 30px}
 
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
-  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-  .stat b{display:block;font-size:24px;margin-top:4px}
-  .stat small{color:var(--muted)}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:14px}
+  .stat b{font-size:18px;margin-left:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin-bottom:10px;align-items:center}
+  .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px}
 
-  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-  .filters input,.filters select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
-  .filters input{flex:1;min-width:200px}
-
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
-  .room{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--free);
-        border-radius:12px;padding:12px;cursor:pointer;transition:transform .1s, box-shadow .1s}
-  .room:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.06)}
-  .room.booked{border-left-color:var(--booked)}
-  .room.busy{border-left-color:var(--busy)}
-  .room .num{font-size:20px;font-weight:700}
-  .room .type{color:var(--muted);font-size:13px}
-  .room .guest{margin-top:8px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .room .dates{color:var(--muted);font-size:12px}
-  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;margin-top:6px;color:#fff;background:var(--free)}
-  .badge.booked{background:var(--booked)} .badge.busy{background:var(--busy)}
-  .warn{color:var(--busy);font-size:12px;font-weight:600}
-  .empty{color:var(--muted);padding:30px;text-align:center}
+  .wrap{overflow:auto;background:var(--card);border:1px solid var(--line);max-height:calc(100vh - 190px)}
+  table.chess{border-collapse:collapse;font-size:13px;user-select:none;min-width:100%}
+  .chess th,.chess td{border:1px solid var(--line);padding:0;height:22px;text-align:center}
+  .chess td.day,.chess th.day{min-width:30px;width:30px}
+  .chess thead th,.chess tfoot th{background:#fff;font-weight:normal;position:sticky;z-index:2}
+  .chess thead tr:nth-child(1) th{top:0;height:30px;font-size:18px;font-weight:bold}
+  .chess thead tr:nth-child(2) th{top:30px}
+  .chess thead tr:nth-child(3) th{top:52px;background:var(--head)}
+  .chess tfoot th{background:var(--head)}
+  .chess tfoot tr:last-child th{background:#fff}
+  .chess th.sun{font-weight:bold}
+  .chess .room{position:sticky;left:0;z-index:1;background:#fff;text-align:left;padding:0 8px;
+               white-space:nowrap;min-width:210px;font-weight:normal}
+  .chess thead .room,.chess tfoot .room{z-index:3;text-align:center}
+  .chess thead tr:nth-child(1) .room{text-decoration:underline}
+  .chess thead tr:nth-child(3) .room{font-size:16px;font-weight:bold}
+  .chess tr.cat td{background:var(--cat);text-align:left;font-weight:bold;padding:0 8px}
+  .chess tr.cat td.room{background:var(--cat)}
+  .chess tr.cat small{font-weight:normal;color:#334155;margin-left:8px}
+  .chess td.free{cursor:cell}
+  .chess td.free:hover{background:#eef2ff}
+  .chess td.sun{background:var(--sun)}
+  .chess td.today,.chess th.today{background:var(--today)!important}
+  .chess td.sel{background:#c7d2fe!important}
+  .chess td.bk{padding:2px 1px;cursor:pointer}
+  .bar{height:18px;border-radius:4px;color:#fff;font-size:12px;line-height:18px;padding:0 6px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;background:var(--booked)}
+  .bar.in{background:var(--in)} .bar.out{background:var(--out)}
+  .bar.debt{box-shadow:inset 4px 0 0 var(--debt)}
+  .bar.cont-l{border-top-left-radius:0;border-bottom-left-radius:0}
+  .bar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0}
 
   .backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
   .backdrop.open{display:flex}
-  .modal{background:var(--card);border-radius:14px;width:100%;max-width:480px;max-height:92vh;overflow:auto;padding:20px}
+  .modal{background:var(--card);border-radius:12px;width:100%;max-width:500px;max-height:92vh;overflow:auto;padding:20px}
+  .modal.wide{max-width:760px}
   .modal h2{margin:0 0 14px;font-size:19px}
+  .modal h3{margin:16px 0 8px;font-size:16px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   label{display:block;font-size:13px;color:var(--muted);margin-bottom:10px}
   label input,label select,label textarea{display:block;width:100%;margin-top:4px;font:inherit;color:var(--text);
-        padding:8px 10px;border:1px solid var(--line);border-radius:8px}
-  textarea{resize:vertical;min-height:60px}
-  .sum{background:var(--bg);border-radius:8px;padding:10px;margin:6px 0 14px;font-size:14px}
+        padding:7px 9px;border:1px solid var(--line);border-radius:6px}
+  textarea{resize:vertical;min-height:54px}
+  .sum{background:var(--bg);border-radius:6px;padding:9px;margin:4px 0 14px;font-size:14px}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
   .modal-actions .left{margin-right:auto}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+  .cfg{width:100%;border-collapse:collapse;font-size:14px}
+  .cfg td,.cfg th{padding:3px;text-align:left}
+  .cfg input,.cfg select{width:100%;font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:5px}
+  .cfg .x{width:34px}
+  .hint{color:var(--muted);font-size:13px}
+
+  @media print{
+    header .actions,header .nav button,.legend{display:none}
+    body{background:#fff} main{padding:0}
+    .wrap{max-height:none;overflow:visible;border:0}
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Гость<span>.</span> учёт номеров</h1>
+  <h1>Гость · шахматка</h1>
+  <div class="nav">
+    <button id="prevBtn" title="Предыдущий месяц">‹</button>
+    <b id="monthTitle"></b>
+    <button id="nextBtn" title="Следующий месяц">›</button>
+    <button id="todayBtn">Сегодня</button>
+  </div>
   <div class="actions">
-    <button id="historyBtn">История</button>
+    <button id="newBtn" class="primary">+ Бронь</button>
+    <button id="printBtn">Печать</button>
     <button id="exportBtn">Экспорт</button>
     <button id="importBtn">Импорт</button>
     <input type="file" id="importFile" accept="application/json" hidden>
-    <button id="settingsBtn" class="primary">Настройки</button>
+    <button id="settingsBtn">Настройки</button>
   </div>
 </header>
 
 <main>
   <section class="stats" id="stats"></section>
-
-  <section class="filters">
-    <input id="search" placeholder="Поиск: номер, гость, телефон">
-    <select id="filterType">
-      <option value="">Все типы</option>
-      <option value="double">Двухместные</option>
-      <option value="triple">Трёхместные</option>
-      <option value="quad">Четырёхместные</option>
-    </select>
-    <select id="filterStatus">
-      <option value="">Любой статус</option>
-      <option value="free">Свободен</option>
-      <option value="booked">Забронирован</option>
-      <option value="busy">Заселён</option>
-    </select>
-  </section>
-
-  <section class="grid" id="grid"></section>
+  <div class="legend">
+    <span><i style="background:var(--booked)"></i>Бронь</span>
+    <span><i style="background:var(--in)"></i>Заселён</span>
+    <span><i style="background:var(--out)"></i>Выехал</span>
+    <span><i style="background:#fff;box-shadow:inset 4px 0 0 var(--debt);border:1px solid var(--line)"></i>Есть долг</span>
+    <span>Выделите мышкой свободные дни в строке номера, чтобы создать бронь</span>
+  </div>
+  <div class="wrap"><table class="chess" id="chess"></table></div>
 </main>
 
-<!-- Окно номера -->
+<!-- Окно брони -->
 <div class="backdrop" id="backdrop">
   <div class="modal">
-    <h2 id="mTitle">Номер</h2>
-    <label>Статус
-      <select id="mStatus">
-        <option value="free">Свободен</option>
-        <option value="booked">Забронирован</option>
-        <option value="busy">Заселён</option>
-      </select>
-    </label>
+    <h2 id="mTitle">Бронь</h2>
+    <div class="row">
+      <label>Номер<select id="mRoom"></select></label>
+      <label>Статус
+        <select id="mStatus">
+          <option value="booked">Бронь</option>
+          <option value="in">Заселён</option>
+          <option value="out">Выехал</option>
+        </select>
+      </label>
+    </div>
     <label>Гость (ФИО)<input id="mGuest"></label>
     <div class="row">
       <label>Телефон<input id="mPhone" type="tel"></label>
@@ -125,7 +152,7 @@
     <label>Заметка<textarea id="mNote"></textarea></label>
     <div class="sum" id="mSum"></div>
     <div class="modal-actions">
-      <button class="danger left" id="mCheckout">Выселить</button>
+      <button class="danger left" id="mDelete">Удалить</button>
       <button id="mCancel">Отмена</button>
       <button class="primary" id="mSave">Сохранить</button>
     </div>
@@ -134,255 +161,398 @@
 
 <!-- Окно настроек -->
 <div class="backdrop" id="settingsBackdrop">
-  <div class="modal">
-    <h2>Настройки номерного фонда</h2>
-    <p style="margin-top:0;color:var(--muted);font-size:14px">Всего номеров: <b id="cfgTotalRooms"></b>. Распределите их по типам.</p>
-    <div class="row">
-      <label>Двухместных<input id="cfgDouble" type="number" min="0"></label>
-      <label>Цена, ₽/ночь<input id="cfgPriceDouble" type="number" min="0"></label>
-    </div>
-    <div class="row">
-      <label>Трёхместных<input id="cfgTriple" type="number" min="0"></label>
-      <label>Цена, ₽/ночь<input id="cfgPriceTriple" type="number" min="0"></label>
-    </div>
-    <div class="row">
-      <label>Четырёхместных<input id="cfgQuad" type="number" min="0"></label>
-      <label>Цена, ₽/ночь<input id="cfgPriceQuad" type="number" min="0"></label>
-    </div>
-    <div class="sum">Сумма: <b id="cfgTotal">0</b></div>
-    <div class="modal-actions">
+  <div class="modal wide">
+    <h2>Настройки</h2>
+    <h3>Категории и цены</h3>
+    <table class="cfg" id="cfgCats"></table>
+    <button id="cfgAddCat" style="margin-top:6px">+ Категория</button>
+    <h3>Номера</h3>
+    <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров.</p>
+    <table class="cfg" id="cfgRooms"></table>
+    <button id="cfgAddRoom" style="margin-top:6px">+ Номер</button>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="danger left" id="cfgReset">Сбросить всё</button>
       <button id="cfgCancel">Отмена</button>
       <button class="primary" id="cfgSave">Сохранить</button>
     </div>
   </div>
 </div>
 
-<!-- Окно истории -->
-<div class="backdrop" id="historyBackdrop">
-  <div class="modal" style="max-width:720px">
-    <h2>История выселений</h2>
-    <div id="historyBody"></div>
-    <div class="modal-actions" style="margin-top:14px">
-      <button id="historyClose">Закрыть</button>
-    </div>
-  </div>
-</div>
-
 <script>
 /* =========================================================
-   Константы и состояние
+   Состояние
    ========================================================= */
-const TOTAL_ROOMS = 30;
-const STORAGE_KEY = 'gost-state-v1';
-const TYPE_NAMES  = { double:'Двухместный', triple:'Трёхместный', quad:'Четырёхместный' };
-const TYPE_PEOPLE = { double:2, triple:3, quad:4 };
-const STATUS_NAMES = { free:'Свободен', booked:'Забронирован', busy:'Заселён' };
+const STORAGE_KEY = 'gost-chess-v1';
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const WD = ['вс','пн','вт','ср','чт','пт','сб'];
+const STATUS_NAMES = { booked:'Бронь', in:'Заселён', out:'Выехал' };
 
 const DEFAULT_STATE = {
-  config: {
-    counts: { double: 15, triple: 10, quad: 5 },
-    prices: { double: 3000, triple: 4000, quad: 5000 }
-  },
-  bookings: {},   // { [номер]: { status, guest, phone, people, checkIn, checkOut, price, paid, note } }
-  history:  []    // завершённые проживания
+  categories: [
+    { id:'econ',   name:'Эконом',               price:3000 },
+    { id:'std',    name:'Двухместный стандарт', price:4000 },
+    { id:'triple', name:'Трехместный',          price:5000 },
+    { id:'family', name:'Семейный',             price:6500 },
+    { id:'lux',    name:'Люкс',                 price:9000 }
+  ],
+  rooms: [
+    { num:1,  cat:'econ',   bed:'двуспальная' },
+    { num:2,  cat:'econ',   bed:'двуспальная' },
+    { num:3,  cat:'econ',   bed:'раздельные' },
+    { num:4,  cat:'econ',   bed:'раздельные' },
+    { num:5,  cat:'econ',   bed:'двуспальная' },
+    { num:6,  cat:'econ',   bed:'двуспальная' },
+    { num:7,  cat:'std',    bed:'двуспальная' },
+    { num:8,  cat:'std',    bed:'двуспальная' },
+    { num:9,  cat:'std',    bed:'раздельные' },
+    { num:10, cat:'std',    bed:'двуспальная' },
+    { num:11, cat:'std',    bed:'двуспальная' },
+    { num:12, cat:'std',    bed:'раздельные' },
+    { num:13, cat:'std',    bed:'двуспальная' },
+    { num:14, cat:'triple', bed:'двуспальная +кресло' },
+    { num:15, cat:'triple', bed:'двуспальная +кресло' },
+    { num:16, cat:'family', bed:'' },
+    { num:17, cat:'family', bed:'' },
+    { num:18, cat:'lux',    bed:'' },
+    { num:19, cat:'lux',    bed:'' }
+  ],
+  bookings: []  // { id, room, start, end (дата выезда), guest, phone, people, price, paid, status, note }
 };
 
 function loadState(){
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (raw && raw.config) return Object.assign(structuredClone(DEFAULT_STATE), raw);
+    if (raw && raw.rooms && raw.categories) return Object.assign(structuredClone(DEFAULT_STATE), raw);
   } catch(e){}
   return structuredClone(DEFAULT_STATE);
 }
 function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 let state = loadState();
-
-/* Номера: 1..TOTAL_ROOMS, сначала двухместные, затем трёх- и четырёхместные */
-function buildRooms(){
-  const list = [];
-  let n = 1;
-  for (const type of ['double','triple','quad']){
-    for (let i = 0; i < state.config.counts[type]; i++) list.push({ num: n++, type });
-  }
-  return list;
-}
-let rooms = buildRooms();
+const now = new Date();
+let view = { y: now.getFullYear(), m: now.getMonth() };   // m: 0..11
 
 /* =========================================================
    Утилиты
    ========================================================= */
 const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const ymd = (y,m,d) => `${y}-${pad(m+1)}-${pad(d)}`;          // m: 0..11
+const todayStr = () => ymd(now.getFullYear(), now.getMonth(), now.getDate());
+const toUTC = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y,m-1,d); };
+const addDays = (s,n) => { const t = new Date(toUTC(s) + n*86400000); return ymd(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
+const nights = (a,b) => (a && b) ? Math.max(0, Math.round((toUTC(b) - toUTC(a)) / 86400000)) : 0;
+const fmt = s => s ? s.split('-').reverse().join('.') : '—';
 const money = v => (Number(v) || 0).toLocaleString('ru-RU') + ' ₽';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const today = () => new Date().toISOString().slice(0,10);
-const fmtDate = d => d ? d.split('-').reverse().join('.') : '—';
+const catOf  = id  => state.categories.find(c => c.id === id) || { name:'—', price:0 };
+const roomOf = num => state.rooms.find(r => r.num === num);
+const total  = b => nights(b.start, b.end) * (Number(b.price) || 0);
+const debt   = b => Math.max(0, total(b) - (Number(b.paid) || 0));
+const uid    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
-function nights(a, b){
-  if (!a || !b) return 0;
-  const d = (new Date(b) - new Date(a)) / 86400000;
-  return d > 0 ? Math.round(d) : 0;
+function sortedRooms(){
+  const order = state.categories.map(c => c.id);
+  return [...state.rooms].sort((a,b) => (order.indexOf(a.cat) - order.indexOf(b.cat)) || (a.num - b.num));
 }
-function bookingOf(num){ return state.bookings[num] || { status:'free' }; }
-function costOf(b){ return nights(b.checkIn, b.checkOut) * (Number(b.price) || 0); }
+function overlaps(room, start, end, exceptId){
+  return state.bookings.find(b => b.room === room && b.id !== exceptId && b.start < end && start < b.end);
+}
 
 /* =========================================================
-   Отрисовка
+   Шахматка
    ========================================================= */
-function renderStats(){
-  let free = 0, booked = 0, busy = 0, due = 0, expected = 0;
-  for (const r of rooms){
-    const b = bookingOf(r.num);
-    if (b.status === 'free') { free++; continue; }
-    b.status === 'busy' ? busy++ : booked++;
-    expected += costOf(b);
-    due += Math.max(0, costOf(b) - (Number(b.paid) || 0));
+function renderChess(){
+  const { y, m } = view;
+  const days = new Date(y, m+1, 0).getDate();
+  const first = ymd(y,m,1), afterLast = m === 11 ? ymd(y+1,0,1) : ymd(y,m+1,1);
+  const t = todayStr();
+  const dayInfo = [];
+  for (let d = 1; d <= days; d++){
+    const s = ymd(y,m,d);
+    dayInfo.push({ d, s, wd: new Date(y,m,d).getDay(), today: s === t });
   }
-  const income = state.history.reduce((s, h) => s + (Number(h.paid) || 0), 0);
-  const load = rooms.length ? Math.round(busy / rooms.length * 100) : 0;
+  const cls = (i, extra='') => `day${i.wd === 0 ? ' sun' : ''}${i.today ? ' today' : ''}${extra}`;
+  const numsRow = dayInfo.map(i => `<th class="${cls(i)}">${i.d}</th>`).join('');
+  const wdRow   = dayInfo.map(i => `<th class="${cls(i)}">${i.wd === 0 ? 'ВС' : WD[i.wd]}</th>`).join('');
+
+  let html = `<thead>
+    <tr><th class="room">${y}</th><th colspan="${days}">${MONTHS[m].toUpperCase()}</th></tr>
+    <tr><th class="room"></th>${numsRow}</tr>
+    <tr><th class="room">${MONTHS[m].toUpperCase()}</th>${wdRow}</tr>
+  </thead><tbody>`;
+
+  const rooms = sortedRooms();
+  for (const cat of state.categories){
+    const list = rooms.filter(r => r.cat === cat.id);
+    if (!list.length) continue;
+    html += `<tr class="cat"><td class="room">${esc(cat.name)}<small>${money(cat.price)}</small></td><td colspan="${days}"></td></tr>`;
+    for (const r of list){
+      const bks = state.bookings.filter(b => b.room === r.num && b.start < afterLast && b.end > first);
+      html += `<tr><th class="room"># ${r.num}${r.bed ? ' (' + esc(r.bed) + ')' : ''}</th>`;
+      let d = 1;
+      while (d <= days){
+        const s = dayInfo[d-1].s;
+        const b = bks.find(b => b.start <= s && s < b.end);
+        if (b){
+          let span = 1;
+          while (d + span <= days && dayInfo[d+span-1].s < b.end) span++;
+          const contL = b.start < s ? ' cont-l' : '';
+          const contR = d + span > days && b.end > afterLast ? ' cont-r' : '';
+          const tip = `${b.guest}\n${fmt(b.start)} → ${fmt(b.end)} (${nights(b.start,b.end)} ноч.)\n${STATUS_NAMES[b.status]} · ${money(total(b))}` +
+                      (debt(b) ? `\nДолг: ${money(debt(b))}` : '') + (b.phone ? `\n${b.phone}` : '');
+          html += `<td class="bk" colspan="${span}" data-id="${b.id}" title="${esc(tip)}">` +
+                  `<div class="bar ${b.status}${debt(b) ? ' debt' : ''}${contL}${contR}">${esc(b.guest)}</div></td>`;
+          d += span;
+        } else {
+          html += `<td class="${cls(dayInfo[d-1], ' free')}" data-room="${r.num}" data-day="${d}"></td>`;
+          d++;
+        }
+      }
+      html += '</tr>';
+    }
+  }
+  html += `</tbody><tfoot>
+    <tr><th class="room"></th>${wdRow}</tr>
+    <tr><th class="room"></th>${numsRow}</tr>
+  </tfoot>`;
+
+  $('chess').innerHTML = html;
+  $('monthTitle').textContent = `${MONTHS[m]} ${y}`;
+  renderStats(days, first, afterLast);
+}
+
+function renderStats(days, first, afterLast){
+  let sold = 0, revenue = 0, arrivals = 0;
+  for (const b of state.bookings){
+    if (!(b.start < afterLast && b.end > first)) continue;
+    const s = b.start > first ? b.start : first;
+    const e = b.end < afterLast ? b.end : afterLast;
+    const n = nights(s, e);
+    sold += n;
+    revenue += n * (Number(b.price) || 0);
+    if (b.start >= first) arrivals++;
+  }
+  const capacity = state.rooms.length * days;
+  const load = capacity ? Math.round(sold / capacity * 100) : 0;
+  const totalDebt = state.bookings.reduce((s,b) => s + debt(b), 0);
+  const t = todayStr();
+  const inHouse = state.bookings.filter(b => b.start <= t && t < b.end).length;
   $('stats').innerHTML = `
-    <div class="stat"><small>Свободно</small><b style="color:var(--free)">${free}</b></div>
-    <div class="stat"><small>Забронировано</small><b style="color:var(--booked)">${booked}</b></div>
-    <div class="stat"><small>Заселено</small><b style="color:var(--busy)">${busy}</b></div>
-    <div class="stat"><small>Загрузка</small><b>${load}%</b></div>
-    <div class="stat"><small>К оплате (текущие)</small><b>${money(due)}</b></div>
-    <div class="stat"><small>Получено (история)</small><b>${money(income)}</b></div>`;
+    <div class="stat">Загрузка за месяц<b>${load}%</b></div>
+    <div class="stat">Продано ночей<b>${sold}</b></div>
+    <div class="stat">Выручка за месяц<b>${money(revenue)}</b></div>
+    <div class="stat">Заездов<b>${arrivals}</b></div>
+    <div class="stat">Занято сегодня<b>${inHouse} / ${state.rooms.length}</b></div>
+    <div class="stat">Общий долг<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>`;
 }
 
-function renderGrid(){
-  const q = $('search').value.trim().toLowerCase();
-  const fType = $('filterType').value, fStatus = $('filterStatus').value;
-  const t = today();
+function renderAll(){ renderChess(); }
 
-  const html = rooms.filter(r => {
-    const b = bookingOf(r.num);
-    if (fType && r.type !== fType) return false;
-    if (fStatus && b.status !== fStatus) return false;
-    if (q && !(String(r.num).includes(q) || (b.guest||'').toLowerCase().includes(q) || (b.phone||'').includes(q))) return false;
-    return true;
-  }).map(r => {
-    const b = bookingOf(r.num);
-    const overdue = b.status === 'busy' && b.checkOut && b.checkOut < t;
-    const unpaid  = b.status !== 'free' && costOf(b) > (Number(b.paid) || 0);
-    return `<div class="room ${b.status}" data-num="${r.num}">
-      <div class="num">№ ${r.num}</div>
-      <div class="type">${TYPE_NAMES[r.type]} · ${money(state.config.prices[r.type])}</div>
-      ${b.status !== 'free' ? `
-        <div class="guest">${esc(b.guest) || 'Без имени'}</div>
-        <div class="dates">${fmtDate(b.checkIn)} → ${fmtDate(b.checkOut)}</div>` : ''}
-      <span class="badge ${b.status}">${STATUS_NAMES[b.status]}</span>
-      ${overdue ? '<div class="warn">Пора выселять</div>' : ''}
-      ${unpaid ? '<div class="warn">Не оплачено полностью</div>' : ''}
-    </div>`;
-  }).join('');
-
-  $('grid').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+/* Навигация по месяцам */
+function shiftMonth(delta){
+  let m = view.m + delta, y = view.y;
+  if (m < 0){ m = 11; y--; } if (m > 11){ m = 0; y++; }
+  view = { y, m }; renderAll();
 }
+$('prevBtn').onclick  = () => shiftMonth(-1);
+$('nextBtn').onclick  = () => shiftMonth(1);
+$('todayBtn').onclick = () => { view = { y: now.getFullYear(), m: now.getMonth() }; renderAll(); };
+$('printBtn').onclick = () => window.print();
 
-function renderAll(){ renderStats(); renderGrid(); }
-
-$('grid').addEventListener('click', e => {
-  const el = e.target.closest('.room');
-  if (el) openModal(Number(el.dataset.num));
+/* Выделение свободных дней мышкой → новая бронь */
+let sel = null;
+const chess = $('chess');
+function paintSel(){
+  chess.querySelectorAll('td.sel').forEach(td => td.classList.remove('sel'));
+  if (!sel) return;
+  const [a,b] = [Math.min(sel.from, sel.to), Math.max(sel.from, sel.to)];
+  chess.querySelectorAll(`td.free[data-room="${sel.room}"]`).forEach(td => {
+    const d = Number(td.dataset.day);
+    if (d >= a && d <= b) td.classList.add('sel');
+  });
+}
+chess.addEventListener('mousedown', e => {
+  const td = e.target.closest('td.free');
+  if (!td || e.button !== 0) return;
+  sel = { room: Number(td.dataset.room), from: Number(td.dataset.day), to: Number(td.dataset.day) };
+  paintSel(); e.preventDefault();
 });
-['search','filterType','filterStatus'].forEach(id => $(id).addEventListener('input', renderGrid));
+chess.addEventListener('mouseover', e => {
+  if (!sel) return;
+  const td = e.target.closest('td.free');
+  if (td && Number(td.dataset.room) === sel.room){ sel.to = Number(td.dataset.day); paintSel(); }
+});
+document.addEventListener('mouseup', () => {
+  if (!sel) return;
+  const a = Math.min(sel.from, sel.to), b = Math.max(sel.from, sel.to);
+  const room = sel.room;
+  sel = null; paintSel();
+  openModal(null, { room, start: ymd(view.y, view.m, a), end: addDays(ymd(view.y, view.m, b), 1) });
+});
+chess.addEventListener('click', e => {
+  const td = e.target.closest('td.bk');
+  if (td) openModal(td.dataset.id);
+});
 
 /* =========================================================
-   Окно номера
+   Окно брони
    ========================================================= */
 const backdrop = $('backdrop');
-let currentNum = null;
+let editId = null;
 
-function openModal(num){
-  currentNum = num;
-  const room = rooms.find(r => r.num === num);
-  const b = bookingOf(num);
-  $('mTitle').textContent = `Номер ${num} — ${TYPE_NAMES[room.type]}`;
-  $('mStatus').value = b.status;
-  $('mGuest').value  = b.guest  || '';
-  $('mPhone').value  = b.phone  || '';
-  $('mPeople').value = b.people || TYPE_PEOPLE[room.type];
-  $('mPeople').max   = TYPE_PEOPLE[room.type];
-  $('mIn').value     = b.checkIn  || today();
-  $('mOut').value    = b.checkOut || '';
-  $('mPrice').value  = b.price ?? state.config.prices[room.type];
-  $('mPaid').value   = b.paid  || 0;
-  $('mNote').value   = b.note  || '';
-  $('mCheckout').style.display = b.status === 'free' ? 'none' : '';
+function openModal(id, preset = {}){
+  editId = id;
+  const b = id ? state.bookings.find(x => x.id === id) : null;
+  const roomNum = b ? b.room : (preset.room ?? sortedRooms()[0]?.num);
+  if (roomNum == null){ alert('Сначала добавьте номера в настройках'); return; }
+
+  $('mRoom').innerHTML = sortedRooms().map(r =>
+    `<option value="${r.num}">№ ${r.num} — ${esc(catOf(r.cat).name)}${r.bed ? ' (' + esc(r.bed) + ')' : ''}</option>`).join('');
+  $('mRoom').value   = roomNum;
+  $('mTitle').textContent = b ? 'Редактирование брони' : 'Новая бронь';
+  $('mStatus').value = b?.status || 'booked';
+  $('mGuest').value  = b?.guest  || '';
+  $('mPhone').value  = b?.phone  || '';
+  $('mPeople').value = b?.people || 2;
+  $('mIn').value     = b?.start  || preset.start || todayStr();
+  $('mOut').value    = b?.end    || preset.end   || addDays($('mIn').value, 1);
+  $('mPrice').value  = b ? b.price : catOf(roomOf(roomNum).cat).price;
+  $('mPaid').value   = b?.paid   || 0;
+  $('mNote').value   = b?.note   || '';
+  $('mDelete').style.display = b ? '' : 'none';
   updateModalSum();
   backdrop.classList.add('open');
   $('mGuest').focus();
 }
-function closeModal(){ backdrop.classList.remove('open'); currentNum = null; }
+function closeModal(){ backdrop.classList.remove('open'); editId = null; }
 
 function readModal(){
   return {
+    room:   Number($('mRoom').value),
     status: $('mStatus').value,
     guest:  $('mGuest').value.trim(),
     phone:  $('mPhone').value.trim(),
     people: Number($('mPeople').value) || 1,
-    checkIn:  $('mIn').value,
-    checkOut: $('mOut').value,
-    price: Math.max(0, Number($('mPrice').value) || 0),
-    paid:  Math.max(0, Number($('mPaid').value)  || 0),
-    note:  $('mNote').value.trim()
+    start:  $('mIn').value,
+    end:    $('mOut').value,
+    price:  Math.max(0, Number($('mPrice').value) || 0),
+    paid:   Math.max(0, Number($('mPaid').value)  || 0),
+    note:   $('mNote').value.trim()
   };
 }
 function updateModalSum(){
-  const b = readModal();
-  const n = nights(b.checkIn, b.checkOut), total = costOf(b), rest = total - b.paid;
-  $('mSum').innerHTML = `Ночей: <b>${n}</b> · Итого: <b>${money(total)}</b> · ` +
-    (rest > 0 ? `Осталось оплатить: <b style="color:var(--busy)">${money(rest)}</b>`
-              : `<b style="color:var(--free)">Оплачено</b>`);
+  const b = readModal(), rest = debt(b);
+  $('mSum').innerHTML = `Ночей: <b>${nights(b.start, b.end)}</b> · Итого: <b>${money(total(b))}</b> · ` +
+    (rest ? `Осталось оплатить: <b style="color:var(--debt)">${money(rest)}</b>` : `<b style="color:var(--in)">Оплачено</b>`);
 }
 ['mIn','mOut','mPrice','mPaid'].forEach(id => $(id).addEventListener('input', updateModalSum));
+$('mRoom').addEventListener('change', () => {
+  if (!editId) { $('mPrice').value = catOf(roomOf(Number($('mRoom').value)).cat).price; updateModalSum(); }
+});
 
 $('mCancel').onclick = closeModal;
+$('newBtn').onclick  = () => openModal(null);
 
 $('mSave').onclick = () => {
   const b = readModal();
-  const room = rooms.find(r => r.num === currentNum);
-  if (b.status === 'free'){
-    delete state.bookings[currentNum];
+  if (!b.guest){ alert('Укажите имя гостя'); return; }
+  if (!b.start || !b.end || nights(b.start, b.end) < 1){ alert('Дата выезда должна быть позже даты заезда'); return; }
+  const clash = overlaps(b.room, b.start, b.end, editId);
+  if (clash){
+    alert(`Номер ${b.room} уже занят: ${clash.guest}, ${fmt(clash.start)} → ${fmt(clash.end)}`);
+    return;
+  }
+  if (editId){
+    Object.assign(state.bookings.find(x => x.id === editId), b);
   } else {
-    if (!b.guest){ alert('Укажите имя гостя'); return; }
-    if (!b.checkIn || !b.checkOut || nights(b.checkIn, b.checkOut) < 1){
-      alert('Дата выезда должна быть позже даты заезда'); return;
-    }
-    if (b.people > TYPE_PEOPLE[room.type]){
-      alert('В этом номере максимум ' + TYPE_PEOPLE[room.type] + ' гостя(ей)'); return;
-    }
-    state.bookings[currentNum] = b;
+    state.bookings.push({ id: uid(), ...b });
   }
   saveState(); closeModal(); renderAll();
 };
 
-$('mCheckout').onclick = () => {
-  const b = readModal();
-  const rest = costOf(b) - b.paid;
-  if (!confirm(rest > 0 ? `Гость не доплатил ${money(rest)}. Всё равно выселить?` : 'Выселить гостя и освободить номер?')) return;
-  const room = rooms.find(r => r.num === currentNum);
-  state.history.unshift({ ...b, num: currentNum, type: room.type, total: costOf(b), closedAt: today() });
-  delete state.bookings[currentNum];
+$('mDelete').onclick = () => {
+  if (!confirm('Удалить эту бронь?')) return;
+  state.bookings = state.bookings.filter(x => x.id !== editId);
   saveState(); closeModal(); renderAll();
 };
 
 /* =========================================================
-   История
+   Настройки: категории, цены, номера
    ========================================================= */
-const historyBackdrop = $('historyBackdrop');
-$('historyBtn').onclick = () => {
-  $('historyBody').innerHTML = state.history.length ? `
-    <table>
-      <tr><th>№</th><th>Гость</th><th>Даты</th><th>Итого</th><th>Оплачено</th></tr>
-      ${state.history.map(h => `<tr>
-        <td>${h.num}</td><td>${esc(h.guest)}</td>
-        <td>${fmtDate(h.checkIn)} – ${fmtDate(h.checkOut)}</td>
-        <td>${money(h.total)}</td><td>${money(h.paid)}</td></tr>`).join('')}
-    </table>` : '<div class="empty">Пока пусто</div>';
-  historyBackdrop.classList.add('open');
+const settingsBackdrop = $('settingsBackdrop');
+let draft = null;
+
+function renderSettings(){
+  $('cfgCats').innerHTML = '<tr><th>Название</th><th style="width:140px">Цена, ₽/ночь</th><th class="x"></th></tr>' +
+    draft.categories.map((c,i) => `<tr>
+      <td><input data-cat="${i}" data-f="name" value="${esc(c.name)}"></td>
+      <td><input data-cat="${i}" data-f="price" type="number" min="0" value="${c.price}"></td>
+      <td><button data-delcat="${i}" title="Удалить">✕</button></td></tr>`).join('');
+
+  const opts = draft.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('cfgRooms').innerHTML = '<tr><th style="width:90px">№</th><th>Категория</th><th>Кровати / описание</th><th class="x"></th></tr>' +
+    draft.rooms.map((r,i) => `<tr>
+      <td><input data-room="${i}" data-f="num" type="number" min="1" value="${r.num}"></td>
+      <td><select data-room="${i}" data-f="cat">${opts}</select></td>
+      <td><input data-room="${i}" data-f="bed" value="${esc(r.bed)}"></td>
+      <td><button data-delroom="${i}" title="Удалить">✕</button></td></tr>`).join('');
+  draft.rooms.forEach((r,i) => { $('cfgRooms').querySelector(`select[data-room="${i}"]`).value = r.cat; });
+}
+
+settingsBackdrop.addEventListener('input', e => {
+  const el = e.target, f = el.dataset.f;
+  if (el.dataset.cat !== undefined){
+    draft.categories[el.dataset.cat][f] = f === 'price' ? Math.max(0, Number(el.value) || 0) : el.value;
+  } else if (el.dataset.room !== undefined){
+    draft.rooms[el.dataset.room][f] = f === 'num' ? Number(el.value) : el.value;
+  }
+});
+settingsBackdrop.addEventListener('click', e => {
+  const dc = e.target.dataset.delcat, dr = e.target.dataset.delroom;
+  if (dc !== undefined){
+    const c = draft.categories[dc];
+    if (draft.rooms.some(r => r.cat === c.id)){ alert('Сначала перенесите или удалите номера этой категории'); return; }
+    draft.categories.splice(dc, 1); renderSettings();
+  }
+  if (dr !== undefined){ draft.rooms.splice(dr, 1); renderSettings(); }
+});
+
+$('settingsBtn').onclick = () => {
+  draft = structuredClone({ categories: state.categories, rooms: sortedRooms() });
+  renderSettings();
+  settingsBackdrop.classList.add('open');
 };
-$('historyClose').onclick = () => historyBackdrop.classList.remove('open');
+$('cfgAddCat').onclick = () => { draft.categories.push({ id: uid(), name: 'Новая категория', price: 0 }); renderSettings(); };
+$('cfgAddRoom').onclick = () => {
+  if (!draft.categories.length){ alert('Сначала добавьте категорию'); return; }
+  const next = Math.max(0, ...draft.rooms.map(r => r.num || 0)) + 1;
+  draft.rooms.push({ num: next, cat: draft.categories[draft.categories.length-1].id, bed: '' });
+  renderSettings();
+};
+$('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
+
+$('cfgSave').onclick = () => {
+  const nums = draft.rooms.map(r => r.num);
+  if (nums.some(n => !Number.isInteger(n) || n < 1)){ alert('Номер комнаты должен быть целым числом больше 0'); return; }
+  if (new Set(nums).size !== nums.length){ alert('Номера комнат не должны повторяться'); return; }
+  if (draft.categories.some(c => !c.name.trim())){ alert('У каждой категории должно быть название'); return; }
+
+  const lost = state.bookings.filter(b => !nums.includes(b.room));
+  if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
+
+  state.categories = draft.categories;
+  state.rooms = draft.rooms;
+  state.bookings = state.bookings.filter(b => nums.includes(b.room));
+  saveState();
+  settingsBackdrop.classList.remove('open');
+  renderAll();
+};
+$('cfgReset').onclick = () => {
+  if (!confirm('Удалить все брони и вернуть номера по умолчанию? Это нельзя отменить.')) return;
+  state = structuredClone(DEFAULT_STATE);
+  saveState(); settingsBackdrop.classList.remove('open'); renderAll();
+};
 
 /* =========================================================
    Экспорт / импорт
@@ -391,7 +561,7 @@ $('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'gost-' + today() + '.json';
+  a.download = 'gost-' + todayStr() + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
 };
@@ -401,82 +571,12 @@ $('importFile').onchange = e => {
   if (!file) return;
   file.text().then(txt => {
     const data = JSON.parse(txt);
-    if (!data.config || !data.config.counts) throw new Error();
+    if (!data.rooms || !data.categories) throw new Error();
     if (!confirm('Заменить текущие данные данными из файла?')) return;
     state = Object.assign(structuredClone(DEFAULT_STATE), data);
-    rooms = buildRooms(); saveState(); renderAll();
+    saveState(); renderAll();
   }).catch(() => alert('Не удалось прочитать файл'));
   e.target.value = '';
-};
-
-/* =========================================================
-   Настройки
-   ========================================================= */
-const settingsBackdrop = $('settingsBackdrop');
-const cfgDouble      = document.getElementById('cfgDouble');
-const cfgTriple      = document.getElementById('cfgTriple');
-const cfgQuad        = document.getElementById('cfgQuad');
-const cfgPriceDouble = document.getElementById('cfgPriceDouble');
-const cfgPriceTriple = document.getElementById('cfgPriceTriple');
-const cfgPriceQuad   = document.getElementById('cfgPriceQuad');
-const cfgTotal       = document.getElementById('cfgTotal');
-$('cfgTotalRooms').textContent = TOTAL_ROOMS;
-
-function updateCfgTotal(){
-  const sum = (Number(cfgDouble.value) || 0)
-            + (Number(cfgTriple.value) || 0)
-            + (Number(cfgQuad.value)   || 0);
-  cfgTotal.textContent = sum;
-  cfgTotal.style.color = sum === TOTAL_ROOMS ? '#059669' : '#dc2626';
-}
-[cfgDouble, cfgTriple, cfgQuad].forEach(el => el.addEventListener('input', updateCfgTotal));
-
-document.getElementById('settingsBtn').onclick = () => {
-  cfgDouble.value      = state.config.counts.double;
-  cfgTriple.value      = state.config.counts.triple;
-  cfgQuad.value        = state.config.counts.quad;
-  cfgPriceDouble.value = state.config.prices.double;
-  cfgPriceTriple.value = state.config.prices.triple;
-  cfgPriceQuad.value   = state.config.prices.quad;
-  updateCfgTotal();
-  settingsBackdrop.classList.add('open');
-};
-
-document.getElementById('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
-
-document.getElementById('cfgSave').onclick = () => {
-  const counts = {
-    double: Math.max(0, Number(cfgDouble.value) || 0),
-    triple: Math.max(0, Number(cfgTriple.value) || 0),
-    quad:   Math.max(0, Number(cfgQuad.value)   || 0)
-  };
-  const sum = counts.double + counts.triple + counts.quad;
-  if (sum !== TOTAL_ROOMS){
-    alert('Суммарно должно быть ровно ' + TOTAL_ROOMS + ' номеров. Сейчас: ' + sum);
-    return;
-  }
-
-  /* Смена типов сдвигает нумерацию — предупреждаем, если есть занятые номера */
-  const oldCounts = state.config.counts;
-  const oldTypes  = rooms.map(r => r.type).join();
-  state.config.counts = counts;
-  const changed = buildRooms().map(r => r.type).join() !== oldTypes;
-  if (changed && Object.keys(state.bookings).length &&
-      !confirm('Типы части номеров изменятся, брони останутся за теми же номерами. Продолжить?')){
-    state.config.counts = oldCounts;
-    return;
-  }
-
-  state.config.prices = {
-    double: Math.max(0, Number(cfgPriceDouble.value) || 0),
-    triple: Math.max(0, Number(cfgPriceTriple.value) || 0),
-    quad:   Math.max(0, Number(cfgPriceQuad.value)   || 0)
-  };
-
-  rooms = buildRooms();
-  saveState();
-  settingsBackdrop.classList.remove('open');
-  renderAll();
 };
 
 /* =========================================================
@@ -486,15 +586,11 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
     closeModal();
     settingsBackdrop.classList.remove('open');
-    historyBackdrop.classList.remove('open');
   }
 });
 backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
 settingsBackdrop.addEventListener('click', e => {
   if (e.target === settingsBackdrop) settingsBackdrop.classList.remove('open');
-});
-historyBackdrop.addEventListener('click', e => {
-  if (e.target === historyBackdrop) historyBackdrop.classList.remove('open');
 });
 
 /* =========================================================
