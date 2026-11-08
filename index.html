@@ -182,39 +182,22 @@
 /* =========================================================
    Состояние
    ========================================================= */
-const STORAGE_KEY = 'gost-chess-v1';
+const STORAGE_KEY = 'gost-chess-v2';
+const OLD_KEY     = 'gost-chess-v1';   // прежний номерной фонд: берём, только если там уже есть брони
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const WD = ['вс','пн','вт','ср','чт','пт','сб'];
 const STATUS_NAMES = { booked:'Бронь', in:'Заселён', out:'Выехал' };
 
 const DEFAULT_STATE = {
   categories: [
-    { id:'econ',   name:'Эконом',               price:3000 },
-    { id:'std',    name:'Двухместный стандарт', price:4000 },
-    { id:'triple', name:'Трехместный',          price:5000 },
-    { id:'family', name:'Семейный',             price:6500 },
-    { id:'lux',    name:'Люкс',                 price:9000 }
+    { id:'double', name:'Двухместный',                     price:4000 },
+    { id:'triple', name:'Трехместный',                     price:5000 },
+    { id:'quad',   name:'Четырехместный (двухкомнатный)',  price:7000 }
   ],
   rooms: [
-    { num:1,  cat:'econ',   bed:'двуспальная' },
-    { num:2,  cat:'econ',   bed:'двуспальная' },
-    { num:3,  cat:'econ',   bed:'раздельные' },
-    { num:4,  cat:'econ',   bed:'раздельные' },
-    { num:5,  cat:'econ',   bed:'двуспальная' },
-    { num:6,  cat:'econ',   bed:'двуспальная' },
-    { num:7,  cat:'std',    bed:'двуспальная' },
-    { num:8,  cat:'std',    bed:'двуспальная' },
-    { num:9,  cat:'std',    bed:'раздельные' },
-    { num:10, cat:'std',    bed:'двуспальная' },
-    { num:11, cat:'std',    bed:'двуспальная' },
-    { num:12, cat:'std',    bed:'раздельные' },
-    { num:13, cat:'std',    bed:'двуспальная' },
-    { num:14, cat:'triple', bed:'двуспальная +кресло' },
-    { num:15, cat:'triple', bed:'двуспальная +кресло' },
-    { num:16, cat:'family', bed:'' },
-    { num:17, cat:'family', bed:'' },
-    { num:18, cat:'lux',    bed:'' },
-    { num:19, cat:'lux',    bed:'' }
+    ...[1,2,3,4,5,6,7,8].map(num   => ({ num, cat:'double', bed:'' })),
+    ...[9,10,11,12,13,14].map(num  => ({ num, cat:'triple', bed:'' })),
+    ...[15,16,17,18].map(num       => ({ num, cat:'quad',   bed:'' }))
   ],
   bookings: []  // { id, room, start, end (дата выезда), guest, phone, people, price, paid, status, note }
 };
@@ -223,6 +206,8 @@ function loadState(){
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (raw && raw.rooms && raw.categories) return Object.assign(structuredClone(DEFAULT_STATE), raw);
+    const old = JSON.parse(localStorage.getItem(OLD_KEY));
+    if (old && old.rooms && old.bookings && old.bookings.length) return Object.assign(structuredClone(DEFAULT_STATE), old);
   } catch(e){}
   return structuredClone(DEFAULT_STATE);
 }
