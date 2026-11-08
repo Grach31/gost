@@ -83,6 +83,43 @@
   .cfg .x{width:34px}
   .hint{color:var(--muted);font-size:13px}
 
+  .more{display:contents}
+  #menuBtn{display:none}
+  .chess td.start{background:#a5b4fc!important}
+
+  /* ---------- Телефон ---------- */
+  @media (max-width: 700px){
+    header{padding:8px 10px;gap:6px;flex-wrap:nowrap;position:relative}
+    h1{font-size:15px;white-space:nowrap}
+    .nav b{min-width:0;font-size:14px;white-space:nowrap}
+    .actions{flex-wrap:nowrap}
+    #menuBtn{display:inline-block}
+    .more{display:none;position:absolute;right:10px;top:calc(100% + 4px);z-index:30;background:var(--card);
+          border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.12);
+          flex-direction:column;padding:6px;gap:4px;min-width:160px}
+    .more.open{display:flex}
+    .more button{text-align:left;border:0;padding:10px 12px}
+    button{padding:7px 10px}
+    main{padding:8px 8px 20px}
+    .stats{flex-wrap:nowrap;gap:6px;margin-bottom:6px}
+    .stat{flex:1;padding:6px 8px;font-size:12px;text-align:center;line-height:1.2}
+    .stat b{display:block;font-size:15px;margin:2px 0 0}
+    .legend{gap:8px;font-size:11px;margin-bottom:6px}
+    .legend #hint{flex-basis:100%}
+    .wrap{max-height:calc(100dvh - 165px)}
+    table.chess{min-width:1240px;font-size:13px}
+    .chess .room{font-size:13px;padding:0 6px}
+    .chess th,.chess td{height:34px}
+    .bar{height:28px;line-height:28px}
+    .backdrop{padding:0;align-items:flex-end}
+    .modal,.modal.wide{max-width:none;border-radius:14px 14px 0 0;max-height:94dvh;padding:16px}
+    label input,label select,label textarea{font-size:16px} /* без авто-зума в iOS */
+    .cfg input,.cfg select{font-size:16px}
+  }
+  @media (max-width: 380px){
+    h1{display:none}
+  }
+
   @media print{
     header .actions,header .nav button,.legend{display:none}
     body{background:#fff} main{padding:0}
@@ -99,11 +136,14 @@
   </div>
   <div class="actions">
     <button id="newBtn" class="primary">+ Бронь</button>
-    <button id="printBtn">Печать</button>
-    <button id="exportBtn">Экспорт</button>
-    <button id="importBtn">Импорт</button>
+    <button id="menuBtn" aria-label="Меню">☰</button>
+    <div class="more" id="moreMenu">
+      <button id="printBtn">Печать</button>
+      <button id="exportBtn">Экспорт</button>
+      <button id="importBtn">Импорт</button>
+      <button id="settingsBtn">Настройки</button>
+    </div>
     <input type="file" id="importFile" accept="application/json" hidden>
-    <button id="settingsBtn">Настройки</button>
   </div>
 </header>
 
@@ -114,7 +154,7 @@
     <span><i style="background:var(--in)"></i>Заселён</span>
     <span><i style="background:var(--out)"></i>Выехал</span>
     <span><i style="background:#fff;box-shadow:inset 4px 0 0 var(--debt);border:1px solid var(--line)"></i>Есть долг</span>
-    <span>Выделите мышкой свободные дни в строке номера, чтобы создать бронь</span>
+    <span id="hint">Выделите мышкой свободные дни в строке номера, чтобы создать бронь</span>
   </div>
   <div class="wrap"><table class="chess" id="chess"></table></div>
 </main>
@@ -319,9 +359,16 @@ function renderStats(days, first, afterLast){
     <div class="stat">Предоплата<b style="color:var(--in)">${money(prepaid)}</b></div>`;
 }
 
-function renderAll(){ renderChess(); }
+function renderAll(){ renderChess(); resetTap(); }
 
 $('printBtn').onclick = () => window.print();
+
+/* Меню на телефоне */
+const moreMenu = $('moreMenu');
+$('menuBtn').onclick = e => { e.stopPropagation(); moreMenu.classList.toggle('open'); };
+document.addEventListener('click', e => {
+  if (!e.target.closest('#menuBtn')) moreMenu.classList.remove('open');
+});
 
 /* Выделение свободных дней мышкой → новая бронь */
 let sel = null;
@@ -335,9 +382,41 @@ function paintSel(){
     if (d >= a && d <= b) td.classList.add('sel');
   });
 }
+/* Палец или мышь: у пальца своя логика выбора дат (два нажатия) */
+let lastPointer = 'mouse';
+chess.addEventListener('pointerdown', e => { lastPointer = e.pointerType; }, true);
+
+const HINT_MOUSE = 'Выделите мышкой свободные дни в строке номера, чтобы создать бронь';
+const HINT_TOUCH = 'Новая бронь: нажмите день заезда, затем день последней ночи';
+const isTouchDevice = matchMedia('(pointer: coarse)').matches;
+$('hint').textContent = isTouchDevice ? HINT_TOUCH : HINT_MOUSE;
+
+let tapStart = null;   // { room, day } — первое нажатие пальцем
+function resetTap(){
+  tapStart = null;
+  chess.querySelectorAll('td.start').forEach(td => td.classList.remove('start'));
+  $('hint').textContent = isTouchDevice ? HINT_TOUCH : HINT_MOUSE;
+}
+chess.addEventListener('click', e => {
+  if (lastPointer !== 'touch') return;
+  const td = e.target.closest('td.free');
+  if (!td) return;
+  const room = Number(td.dataset.room), day = Number(td.dataset.day);
+  if (!tapStart || tapStart.room !== room){
+    resetTap();
+    tapStart = { room, day };
+    td.classList.add('start');
+    $('hint').textContent = `№ ${room}, заезд ${pad(day)}.01 — нажмите день последней ночи (или тот же день для 1 ночи)`;
+    return;
+  }
+  const a = Math.min(tapStart.day, day), b = Math.max(tapStart.day, day);
+  resetTap();
+  openModal(null, { room, start: ymd(view.y, view.m, a), end: addDays(ymd(view.y, view.m, b), 1) });
+});
+
 chess.addEventListener('mousedown', e => {
   const td = e.target.closest('td.free');
-  if (!td || e.button !== 0) return;
+  if (!td || e.button !== 0 || lastPointer === 'touch') return;
   sel = { room: Number(td.dataset.room), from: Number(td.dataset.day), to: Number(td.dataset.day) };
   paintSel(); e.preventDefault();
 });
@@ -535,6 +614,8 @@ $('importFile').onchange = e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
     closeModal();
+    resetTap();
+    moreMenu.classList.remove('open');
     settingsBackdrop.classList.remove('open');
   }
 });
