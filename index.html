@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гость — учёт номеров</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --accent:#4f46e5; --free:#059669; --booked:#d97706; --busy:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+         padding:16px 24px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  h1{margin:0;font-size:22px}
+  h1 span{color:var(--accent)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);
+         padding:8px 14px;border-radius:8px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.danger{color:var(--busy);border-color:#fecaca}
+  main{max-width:1200px;margin:0 auto;padding:20px 24px 40px}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .stat b{display:block;font-size:24px;margin-top:4px}
+  .stat small{color:var(--muted)}
+
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .filters input,.filters select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+  .filters input{flex:1;min-width:200px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+  .room{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--free);
+        border-radius:12px;padding:12px;cursor:pointer;transition:transform .1s, box-shadow .1s}
+  .room:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.06)}
+  .room.booked{border-left-color:var(--booked)}
+  .room.busy{border-left-color:var(--busy)}
+  .room .num{font-size:20px;font-weight:700}
+  .room .type{color:var(--muted);font-size:13px}
+  .room .guest{margin-top:8px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .room .dates{color:var(--muted);font-size:12px}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;margin-top:6px;color:#fff;background:var(--free)}
+  .badge.booked{background:var(--booked)} .badge.busy{background:var(--busy)}
+  .warn{color:var(--busy);font-size:12px;font-weight:600}
+  .empty{color:var(--muted);padding:30px;text-align:center}
+
+  .backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+  .backdrop.open{display:flex}
+  .modal{background:var(--card);border-radius:14px;width:100%;max-width:480px;max-height:92vh;overflow:auto;padding:20px}
+  .modal h2{margin:0 0 14px;font-size:19px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:10px}
+  label input,label select,label textarea{display:block;width:100%;margin-top:4px;font:inherit;color:var(--text);
+        padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+  textarea{resize:vertical;min-height:60px}
+  .sum{background:var(--bg);border-radius:8px;padding:10px;margin:6px 0 14px;font-size:14px}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .modal-actions .left{margin-right:auto}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Гость<span>.</span> учёт номеров</h1>
+  <div class="actions">
+    <button id="historyBtn">История</button>
+    <button id="exportBtn">Экспорт</button>
+    <button id="importBtn">Импорт</button>
+    <input type="file" id="importFile" accept="application/json" hidden>
+    <button id="settingsBtn" class="primary">Настройки</button>
+  </div>
+</header>
+
+<main>
+  <section class="stats" id="stats"></section>
+
+  <section class="filters">
+    <input id="search" placeholder="Поиск: номер, гость, телефон">
+    <select id="filterType">
+      <option value="">Все типы</option>
+      <option value="double">Двухместные</option>
+      <option value="triple">Трёхместные</option>
+      <option value="quad">Четырёхместные</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">Любой статус</option>
+      <option value="free">Свободен</option>
+      <option value="booked">Забронирован</option>
+      <option value="busy">Заселён</option>
+    </select>
+  </section>
+
+  <section class="grid" id="grid"></section>
+</main>
+
+<!-- Окно номера -->
+<div class="backdrop" id="backdrop">
+  <div class="modal">
+    <h2 id="mTitle">Номер</h2>
+    <label>Статус
+      <select id="mStatus">
+        <option value="free">Свободен</option>
+        <option value="booked">Забронирован</option>
+        <option value="busy">Заселён</option>
+      </select>
+    </label>
+    <label>Гость (ФИО)<input id="mGuest"></label>
+    <div class="row">
+      <label>Телефон<input id="mPhone" type="tel"></label>
+      <label>Кол-во гостей<input id="mPeople" type="number" min="1"></label>
+    </div>
+    <div class="row">
+      <label>Заезд<input id="mIn" type="date"></label>
+      <label>Выезд<input id="mOut" type="date"></label>
+    </div>
+    <div class="row">
+      <label>Цена за ночь, ₽<input id="mPrice" type="number" min="0"></label>
+      <label>Оплачено, ₽<input id="mPaid" type="number" min="0"></label>
+    </div>
+    <label>Заметка<textarea id="mNote"></textarea></label>
+    <div class="sum" id="mSum"></div>
+    <div class="modal-actions">
+      <button class="danger left" id="mCheckout">Выселить</button>
+      <button id="mCancel">Отмена</button>
+      <button class="primary" id="mSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Окно настроек -->
+<div class="backdrop" id="settingsBackdrop">
+  <div class="modal">
+    <h2>Настройки номерного фонда</h2>
+    <p style="margin-top:0;color:var(--muted);font-size:14px">Всего номеров: <b id="cfgTotalRooms"></b>. Распределите их по типам.</p>
+    <div class="row">
+      <label>Двухместных<input id="cfgDouble" type="number" min="0"></label>
+      <label>Цена, ₽/ночь<input id="cfgPriceDouble" type="number" min="0"></label>
+    </div>
+    <div class="row">
+      <label>Трёхместных<input id="cfgTriple" type="number" min="0"></label>
+      <label>Цена, ₽/ночь<input id="cfgPriceTriple" type="number" min="0"></label>
+    </div>
+    <div class="row">
+      <label>Четырёхместных<input id="cfgQuad" type="number" min="0"></label>
+      <label>Цена, ₽/ночь<input id="cfgPriceQuad" type="number" min="0"></label>
+    </div>
+    <div class="sum">Сумма: <b id="cfgTotal">0</b></div>
+    <div class="modal-actions">
+      <button id="cfgCancel">Отмена</button>
+      <button class="primary" id="cfgSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Окно истории -->
+<div class="backdrop" id="historyBackdrop">
+  <div class="modal" style="max-width:720px">
+    <h2>История выселений</h2>
+    <div id="historyBody"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button id="historyClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   Константы и состояние
+   ========================================================= */
+const TOTAL_ROOMS = 30;
+const STORAGE_KEY = 'gost-state-v1';
+const TYPE_NAMES  = { double:'Двухместный', triple:'Трёхместный', quad:'Четырёхместный' };
+const TYPE_PEOPLE = { double:2, triple:3, quad:4 };
+const STATUS_NAMES = { free:'Свободен', booked:'Забронирован', busy:'Заселён' };
+
+const DEFAULT_STATE = {
+  config: {
+    counts: { double: 15, triple: 10, quad: 5 },
+    prices: { double: 3000, triple: 4000, quad: 5000 }
+  },
+  bookings: {},   // { [номер]: { status, guest, phone, people, checkIn, checkOut, price, paid, note } }
+  history:  []    // завершённые проживания
+};
+
+function loadState(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (raw && raw.config) return Object.assign(structuredClone(DEFAULT_STATE), raw);
+  } catch(e){}
+  return structuredClone(DEFAULT_STATE);
+}
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+let state = loadState();
+
+/* Номера: 1..TOTAL_ROOMS, сначала двухместные, затем трёх- и четырёхместные */
+function buildRooms(){
+  const list = [];
+  let n = 1;
+  for (const type of ['double','triple','quad']){
+    for (let i = 0; i < state.config.counts[type]; i++) list.push({ num: n++, type });
+  }
+  return list;
+}
+let rooms = buildRooms();
+
+/* =========================================================
+   Утилиты
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const money = v => (Number(v) || 0).toLocaleString('ru-RU') + ' ₽';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => new Date().toISOString().slice(0,10);
+const fmtDate = d => d ? d.split('-').reverse().join('.') : '—';
+
+function nights(a, b){
+  if (!a || !b) return 0;
+  const d = (new Date(b) - new Date(a)) / 86400000;
+  return d > 0 ? Math.round(d) : 0;
+}
+function bookingOf(num){ return state.bookings[num] || { status:'free' }; }
+function costOf(b){ return nights(b.checkIn, b.checkOut) * (Number(b.price) || 0); }
+
+/* =========================================================
+   Отрисовка
+   ========================================================= */
+function renderStats(){
+  let free = 0, booked = 0, busy = 0, due = 0, expected = 0;
+  for (const r of rooms){
+    const b = bookingOf(r.num);
+    if (b.status === 'free') { free++; continue; }
+    b.status === 'busy' ? busy++ : booked++;
+    expected += costOf(b);
+    due += Math.max(0, costOf(b) - (Number(b.paid) || 0));
+  }
+  const income = state.history.reduce((s, h) => s + (Number(h.paid) || 0), 0);
+  const load = rooms.length ? Math.round(busy / rooms.length * 100) : 0;
+  $('stats').innerHTML = `
+    <div class="stat"><small>Свободно</small><b style="color:var(--free)">${free}</b></div>
+    <div class="stat"><small>Забронировано</small><b style="color:var(--booked)">${booked}</b></div>
+    <div class="stat"><small>Заселено</small><b style="color:var(--busy)">${busy}</b></div>
+    <div class="stat"><small>Загрузка</small><b>${load}%</b></div>
+    <div class="stat"><small>К оплате (текущие)</small><b>${money(due)}</b></div>
+    <div class="stat"><small>Получено (история)</small><b>${money(income)}</b></div>`;
+}
+
+function renderGrid(){
+  const q = $('search').value.trim().toLowerCase();
+  const fType = $('filterType').value, fStatus = $('filterStatus').value;
+  const t = today();
+
+  const html = rooms.filter(r => {
+    const b = bookingOf(r.num);
+    if (fType && r.type !== fType) return false;
+    if (fStatus && b.status !== fStatus) return false;
+    if (q && !(String(r.num).includes(q) || (b.guest||'').toLowerCase().includes(q) || (b.phone||'').includes(q))) return false;
+    return true;
+  }).map(r => {
+    const b = bookingOf(r.num);
+    const overdue = b.status === 'busy' && b.checkOut && b.checkOut < t;
+    const unpaid  = b.status !== 'free' && costOf(b) > (Number(b.paid) || 0);
+    return `<div class="room ${b.status}" data-num="${r.num}">
+      <div class="num">№ ${r.num}</div>
+      <div class="type">${TYPE_NAMES[r.type]} · ${money(state.config.prices[r.type])}</div>
+      ${b.status !== 'free' ? `
+        <div class="guest">${esc(b.guest) || 'Без имени'}</div>
+        <div class="dates">${fmtDate(b.checkIn)} → ${fmtDate(b.checkOut)}</div>` : ''}
+      <span class="badge ${b.status}">${STATUS_NAMES[b.status]}</span>
+      ${overdue ? '<div class="warn">Пора выселять</div>' : ''}
+      ${unpaid ? '<div class="warn">Не оплачено полностью</div>' : ''}
+    </div>`;
+  }).join('');
+
+  $('grid').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+}
+
+function renderAll(){ renderStats(); renderGrid(); }
+
+$('grid').addEventListener('click', e => {
+  const el = e.target.closest('.room');
+  if (el) openModal(Number(el.dataset.num));
+});
+['search','filterType','filterStatus'].forEach(id => $(id).addEventListener('input', renderGrid));
+
+/* =========================================================
+   Окно номера
+   ========================================================= */
+const backdrop = $('backdrop');
+let currentNum = null;
+
+function openModal(num){
+  currentNum = num;
+  const room = rooms.find(r => r.num === num);
+  const b = bookingOf(num);
+  $('mTitle').textContent = `Номер ${num} — ${TYPE_NAMES[room.type]}`;
+  $('mStatus').value = b.status;
+  $('mGuest').value  = b.guest  || '';
+  $('mPhone').value  = b.phone  || '';
+  $('mPeople').value = b.people || TYPE_PEOPLE[room.type];
+  $('mPeople').max   = TYPE_PEOPLE[room.type];
+  $('mIn').value     = b.checkIn  || today();
+  $('mOut').value    = b.checkOut || '';
+  $('mPrice').value  = b.price ?? state.config.prices[room.type];
+  $('mPaid').value   = b.paid  || 0;
+  $('mNote').value   = b.note  || '';
+  $('mCheckout').style.display = b.status === 'free' ? 'none' : '';
+  updateModalSum();
+  backdrop.classList.add('open');
+  $('mGuest').focus();
+}
+function closeModal(){ backdrop.classList.remove('open'); currentNum = null; }
+
+function readModal(){
+  return {
+    status: $('mStatus').value,
+    guest:  $('mGuest').value.trim(),
+    phone:  $('mPhone').value.trim(),
+    people: Number($('mPeople').value) || 1,
+    checkIn:  $('mIn').value,
+    checkOut: $('mOut').value,
+    price: Math.max(0, Number($('mPrice').value) || 0),
+    paid:  Math.max(0, Number($('mPaid').value)  || 0),
+    note:  $('mNote').value.trim()
+  };
+}
+function updateModalSum(){
+  const b = readModal();
+  const n = nights(b.checkIn, b.checkOut), total = costOf(b), rest = total - b.paid;
+  $('mSum').innerHTML = `Ночей: <b>${n}</b> · Итого: <b>${money(total)}</b> · ` +
+    (rest > 0 ? `Осталось оплатить: <b style="color:var(--busy)">${money(rest)}</b>`
+              : `<b style="color:var(--free)">Оплачено</b>`);
+}
+['mIn','mOut','mPrice','mPaid'].forEach(id => $(id).addEventListener('input', updateModalSum));
+
+$('mCancel').onclick = closeModal;
+
+$('mSave').onclick = () => {
+  const b = readModal();
+  const room = rooms.find(r => r.num === currentNum);
+  if (b.status === 'free'){
+    delete state.bookings[currentNum];
+  } else {
+    if (!b.guest){ alert('Укажите имя гостя'); return; }
+    if (!b.checkIn || !b.checkOut || nights(b.checkIn, b.checkOut) < 1){
+      alert('Дата выезда должна быть позже даты заезда'); return;
+    }
+    if (b.people > TYPE_PEOPLE[room.type]){
+      alert('В этом номере максимум ' + TYPE_PEOPLE[room.type] + ' гостя(ей)'); return;
+    }
+    state.bookings[currentNum] = b;
+  }
+  saveState(); closeModal(); renderAll();
+};
+
+$('mCheckout').onclick = () => {
+  const b = readModal();
+  const rest = costOf(b) - b.paid;
+  if (!confirm(rest > 0 ? `Гость не доплатил ${money(rest)}. Всё равно выселить?` : 'Выселить гостя и освободить номер?')) return;
+  const room = rooms.find(r => r.num === currentNum);
+  state.history.unshift({ ...b, num: currentNum, type: room.type, total: costOf(b), closedAt: today() });
+  delete state.bookings[currentNum];
+  saveState(); closeModal(); renderAll();
+};
+
+/* =========================================================
+   История
+   ========================================================= */
+const historyBackdrop = $('historyBackdrop');
+$('historyBtn').onclick = () => {
+  $('historyBody').innerHTML = state.history.length ? `
+    <table>
+      <tr><th>№</th><th>Гость</th><th>Даты</th><th>Итого</th><th>Оплачено</th></tr>
+      ${state.history.map(h => `<tr>
+        <td>${h.num}</td><td>${esc(h.guest)}</td>
+        <td>${fmtDate(h.checkIn)} – ${fmtDate(h.checkOut)}</td>
+        <td>${money(h.total)}</td><td>${money(h.paid)}</td></tr>`).join('')}
+    </table>` : '<div class="empty">Пока пусто</div>';
+  historyBackdrop.classList.add('open');
+};
+$('historyClose').onclick = () => historyBackdrop.classList.remove('open');
+
+/* =========================================================
+   Экспорт / импорт
+   ========================================================= */
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gost-' + today() + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  file.text().then(txt => {
+    const data = JSON.parse(txt);
+    if (!data.config || !data.config.counts) throw new Error();
+    if (!confirm('Заменить текущие данные данными из файла?')) return;
+    state = Object.assign(structuredClone(DEFAULT_STATE), data);
+    rooms = buildRooms(); saveState(); renderAll();
+  }).catch(() => alert('Не удалось прочитать файл'));
+  e.target.value = '';
+};
+
+/* =========================================================
+   Настройки
+   ========================================================= */
+const settingsBackdrop = $('settingsBackdrop');
+const cfgDouble      = document.getElementById('cfgDouble');
+const cfgTriple      = document.getElementById('cfgTriple');
+const cfgQuad        = document.getElementById('cfgQuad');
+const cfgPriceDouble = document.getElementById('cfgPriceDouble');
+const cfgPriceTriple = document.getElementById('cfgPriceTriple');
+const cfgPriceQuad   = document.getElementById('cfgPriceQuad');
+const cfgTotal       = document.getElementById('cfgTotal');
+$('cfgTotalRooms').textContent = TOTAL_ROOMS;
+
+function updateCfgTotal(){
+  const sum = (Number(cfgDouble.value) || 0)
+            + (Number(cfgTriple.value) || 0)
+            + (Number(cfgQuad.value)   || 0);
+  cfgTotal.textContent = sum;
+  cfgTotal.style.color = sum === TOTAL_ROOMS ? '#059669' : '#dc2626';
+}
+[cfgDouble, cfgTriple, cfgQuad].forEach(el => el.addEventListener('input', updateCfgTotal));
+
+document.getElementById('settingsBtn').onclick = () => {
+  cfgDouble.value      = state.config.counts.double;
+  cfgTriple.value      = state.config.counts.triple;
+  cfgQuad.value        = state.config.counts.quad;
+  cfgPriceDouble.value = state.config.prices.double;
+  cfgPriceTriple.value = state.config.prices.triple;
+  cfgPriceQuad.value   = state.config.prices.quad;
+  updateCfgTotal();
+  settingsBackdrop.classList.add('open');
+};
+
+document.getElementById('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
+
+document.getElementById('cfgSave').onclick = () => {
+  const counts = {
+    double: Math.max(0, Number(cfgDouble.value) || 0),
+    triple: Math.max(0, Number(cfgTriple.value) || 0),
+    quad:   Math.max(0, Number(cfgQuad.value)   || 0)
+  };
+  const sum = counts.double + counts.triple + counts.quad;
+  if (sum !== TOTAL_ROOMS){
+    alert('Суммарно должно быть ровно ' + TOTAL_ROOMS + ' номеров. Сейчас: ' + sum);
+    return;
+  }
+
+  /* Смена типов сдвигает нумерацию — предупреждаем, если есть занятые номера */
+  const oldCounts = state.config.counts;
+  const oldTypes  = rooms.map(r => r.type).join();
+  state.config.counts = counts;
+  const changed = buildRooms().map(r => r.type).join() !== oldTypes;
+  if (changed && Object.keys(state.bookings).length &&
+      !confirm('Типы части номеров изменятся, брони останутся за теми же номерами. Продолжить?')){
+    state.config.counts = oldCounts;
+    return;
+  }
+
+  state.config.prices = {
+    double: Math.max(0, Number(cfgPriceDouble.value) || 0),
+    triple: Math.max(0, Number(cfgPriceTriple.value) || 0),
+    quad:   Math.max(0, Number(cfgPriceQuad.value)   || 0)
+  };
+
+  rooms = buildRooms();
+  saveState();
+  settingsBackdrop.classList.remove('open');
+  renderAll();
+};
+
+/* =========================================================
+   Esc — закрыть модалки
+   ========================================================= */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){
+    closeModal();
+    settingsBackdrop.classList.remove('open');
+    historyBackdrop.classList.remove('open');
+  }
+});
+backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
+settingsBackdrop.addEventListener('click', e => {
+  if (e.target === settingsBackdrop) settingsBackdrop.classList.remove('open');
+});
+historyBackdrop.addEventListener('click', e => {
+  if (e.target === historyBackdrop) historyBackdrop.classList.remove('open');
+});
+
+/* =========================================================
+   Старт
+   ========================================================= */
+renderAll();
+</script>
+</body>
+</html>
