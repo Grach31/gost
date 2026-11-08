@@ -95,10 +95,7 @@
 <header>
   <h1>Гость · шахматка</h1>
   <div class="nav">
-    <button id="prevBtn" title="Предыдущий месяц">‹</button>
     <b id="monthTitle"></b>
-    <button id="nextBtn" title="Следующий месяц">›</button>
-    <button id="todayBtn">Сегодня</button>
   </div>
   <div class="actions">
     <button id="newBtn" class="primary">+ Бронь</button>
@@ -146,7 +143,7 @@
       <label>Выезд<input id="mOut" type="date"></label>
     </div>
     <div class="row">
-      <label>Цена за ночь, ₽<input id="mPrice" type="number" min="0"></label>
+      <label>Цена за ночь, ₽<input id="mPrice" type="number" readonly tabindex="-1" style="background:var(--bg)"></label>
       <label>Оплачено, ₽<input id="mPaid" type="number" min="0"></label>
     </div>
     <label>Заметка<textarea id="mNote"></textarea></label>
@@ -163,11 +160,10 @@
 <div class="backdrop" id="settingsBackdrop">
   <div class="modal wide">
     <h2>Настройки</h2>
-    <h3>Категории и цены</h3>
-    <table class="cfg" id="cfgCats"></table>
-    <button id="cfgAddCat" style="margin-top:6px">+ Категория</button>
+    <h3>Цены за ночь (фиксированные)</h3>
+    <p class="hint" id="cfgPrices"></p>
     <h3>Номера</h3>
-    <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров.</p>
+    <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров. Цена номера зависит от его категории.</p>
     <table class="cfg" id="cfgRooms"></table>
     <button id="cfgAddRoom" style="margin-top:6px">+ Номер</button>
     <div class="modal-actions" style="margin-top:16px">
@@ -183,31 +179,34 @@
    Состояние
    ========================================================= */
 const STORAGE_KEY = 'gost-chess-v2';
-const OLD_KEY     = 'gost-chess-v1';   // прежний номерной фонд: берём, только если там уже есть брони
+/* Фиксированные цены за ночь — в настройках не меняются */
+const CATEGORIES = [
+  { id:'double', name:'Двухместный',                    price:1500 },
+  { id:'triple', name:'Трехместный',                    price:1700 },
+  { id:'quad',   name:'Четырехместный (двухкомнатный)', price:2000 }
+];
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const WD = ['вс','пн','вт','ср','чт','пт','сб'];
 const STATUS_NAMES = { booked:'Бронь', in:'Заселён', out:'Выехал' };
 
 const DEFAULT_STATE = {
-  categories: [
-    { id:'double', name:'Двухместный',                     price:4000 },
-    { id:'triple', name:'Трехместный',                     price:5000 },
-    { id:'quad',   name:'Четырехместный (двухкомнатный)',  price:7000 }
-  ],
   rooms: [
     ...[1,2,3,4,5,6,7,8].map(num   => ({ num, cat:'double', bed:'' })),
     ...[9,10,11,12,13,14].map(num  => ({ num, cat:'triple', bed:'' })),
     ...[15,16,17,18].map(num       => ({ num, cat:'quad',   bed:'' }))
   ],
-  bookings: []  // { id, room, start, end (дата выезда), guest, phone, people, price, paid, status, note }
+  bookings: []  // { id, room, start, end (дата выезда), guest, phone, people, paid, status, note }
 };
 
+/* Данные годятся, только если все номера относятся к нашим трём категориям */
+function validState(s){
+  return s && Array.isArray(s.rooms) && Array.isArray(s.bookings) &&
+         s.rooms.every(r => CATEGORIES.some(c => c.id === r.cat));
+}
 function loadState(){
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (raw && raw.rooms && raw.categories) return Object.assign(structuredClone(DEFAULT_STATE), raw);
-    const old = JSON.parse(localStorage.getItem(OLD_KEY));
-    if (old && old.rooms && old.bookings && old.bookings.length) return Object.assign(structuredClone(DEFAULT_STATE), old);
+    if (validState(raw)) return { rooms: raw.rooms, bookings: raw.bookings };
   } catch(e){}
   return structuredClone(DEFAULT_STATE);
 }
@@ -215,7 +214,9 @@ function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
 
 let state = loadState();
 const now = new Date();
-let view = { y: now.getFullYear(), m: now.getMonth() };   // m: 0..11
+/* Шахматка только на январь: ближайший январь (текущий, если сейчас январь) */
+const view = { y: now.getMonth() === 0 ? now.getFullYear() : now.getFullYear() + 1, m: 0 };
+const JAN_FIRST = `${view.y}-01-01`, JAN_LAST = `${view.y}-01-31`, FEB_FIRST = `${view.y}-02-01`;
 
 /* =========================================================
    Утилиты
@@ -230,14 +231,15 @@ const nights = (a,b) => (a && b) ? Math.max(0, Math.round((toUTC(b) - toUTC(a)) 
 const fmt = s => s ? s.split('-').reverse().join('.') : '—';
 const money = v => (Number(v) || 0).toLocaleString('ru-RU') + ' ₽';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const catOf  = id  => state.categories.find(c => c.id === id) || { name:'—', price:0 };
+const catOf  = id  => CATEGORIES.find(c => c.id === id) || { name:'—', price:0 };
 const roomOf = num => state.rooms.find(r => r.num === num);
-const total  = b => nights(b.start, b.end) * (Number(b.price) || 0);
+const priceOf = num => catOf(roomOf(num)?.cat).price;
+const total  = b => nights(b.start, b.end) * priceOf(b.room);
 const debt   = b => Math.max(0, total(b) - (Number(b.paid) || 0));
 const uid    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 function sortedRooms(){
-  const order = state.categories.map(c => c.id);
+  const order = CATEGORIES.map(c => c.id);
   return [...state.rooms].sort((a,b) => (order.indexOf(a.cat) - order.indexOf(b.cat)) || (a.num - b.num));
 }
 function overlaps(room, start, end, exceptId){
@@ -268,7 +270,7 @@ function renderChess(){
   </thead><tbody>`;
 
   const rooms = sortedRooms();
-  for (const cat of state.categories){
+  for (const cat of CATEGORIES){
     const list = rooms.filter(r => r.cat === cat.id);
     if (!list.length) continue;
     html += `<tr class="cat"><td class="room">${esc(cat.name)}<small>${money(cat.price)}</small></td><td colspan="${days}"></td></tr>`;
@@ -315,34 +317,23 @@ function renderStats(days, first, afterLast){
     const e = b.end < afterLast ? b.end : afterLast;
     const n = nights(s, e);
     sold += n;
-    revenue += n * (Number(b.price) || 0);
+    revenue += n * priceOf(b.room);
     if (b.start >= first) arrivals++;
   }
   const capacity = state.rooms.length * days;
   const load = capacity ? Math.round(sold / capacity * 100) : 0;
   const totalDebt = state.bookings.reduce((s,b) => s + debt(b), 0);
-  const t = todayStr();
-  const inHouse = state.bookings.filter(b => b.start <= t && t < b.end).length;
   $('stats').innerHTML = `
-    <div class="stat">Загрузка за месяц<b>${load}%</b></div>
+    <div class="stat">Загрузка за январь<b>${load}%</b></div>
     <div class="stat">Продано ночей<b>${sold}</b></div>
-    <div class="stat">Выручка за месяц<b>${money(revenue)}</b></div>
+    <div class="stat">Свободно ночей<b>${capacity - sold}</b></div>
+    <div class="stat">Выручка за январь<b>${money(revenue)}</b></div>
     <div class="stat">Заездов<b>${arrivals}</b></div>
-    <div class="stat">Занято сегодня<b>${inHouse} / ${state.rooms.length}</b></div>
     <div class="stat">Общий долг<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>`;
 }
 
 function renderAll(){ renderChess(); }
 
-/* Навигация по месяцам */
-function shiftMonth(delta){
-  let m = view.m + delta, y = view.y;
-  if (m < 0){ m = 11; y--; } if (m > 11){ m = 0; y++; }
-  view = { y, m }; renderAll();
-}
-$('prevBtn').onclick  = () => shiftMonth(-1);
-$('nextBtn').onclick  = () => shiftMonth(1);
-$('todayBtn').onclick = () => { view = { y: now.getFullYear(), m: now.getMonth() }; renderAll(); };
 $('printBtn').onclick = () => window.print();
 
 /* Выделение свободных дней мышкой → новая бронь */
@@ -400,9 +391,8 @@ function openModal(id, preset = {}){
   $('mGuest').value  = b?.guest  || '';
   $('mPhone').value  = b?.phone  || '';
   $('mPeople').value = b?.people || 2;
-  $('mIn').value     = b?.start  || preset.start || todayStr();
+  $('mIn').value     = b?.start  || preset.start || JAN_FIRST;
   $('mOut').value    = b?.end    || preset.end   || addDays($('mIn').value, 1);
-  $('mPrice').value  = b ? b.price : catOf(roomOf(roomNum).cat).price;
   $('mPaid').value   = b?.paid   || 0;
   $('mNote').value   = b?.note   || '';
   $('mDelete').style.display = b ? '' : 'none';
@@ -411,6 +401,10 @@ function openModal(id, preset = {}){
   $('mGuest').focus();
 }
 function closeModal(){ backdrop.classList.remove('open'); editId = null; }
+
+/* Даты в окне брони — только январь (выезд не позже 1 февраля) */
+$('mIn').min = JAN_FIRST;  $('mIn').max = JAN_LAST;
+$('mOut').min = addDays(JAN_FIRST, 1); $('mOut').max = FEB_FIRST;
 
 function readModal(){
   return {
@@ -421,20 +415,17 @@ function readModal(){
     people: Number($('mPeople').value) || 1,
     start:  $('mIn').value,
     end:    $('mOut').value,
-    price:  Math.max(0, Number($('mPrice').value) || 0),
-    paid:   Math.max(0, Number($('mPaid').value)  || 0),
+    paid:   Math.max(0, Number($('mPaid').value) || 0),
     note:   $('mNote').value.trim()
   };
 }
 function updateModalSum(){
   const b = readModal(), rest = debt(b);
+  $('mPrice').value = priceOf(b.room);
   $('mSum').innerHTML = `Ночей: <b>${nights(b.start, b.end)}</b> · Итого: <b>${money(total(b))}</b> · ` +
     (rest ? `Осталось оплатить: <b style="color:var(--debt)">${money(rest)}</b>` : `<b style="color:var(--in)">Оплачено</b>`);
 }
-['mIn','mOut','mPrice','mPaid'].forEach(id => $(id).addEventListener('input', updateModalSum));
-$('mRoom').addEventListener('change', () => {
-  if (!editId) { $('mPrice').value = catOf(roomOf(Number($('mRoom').value)).cat).price; updateModalSum(); }
-});
+['mIn','mOut','mPaid','mRoom'].forEach(id => $(id).addEventListener('input', updateModalSum));
 
 $('mCancel').onclick = closeModal;
 $('newBtn').onclick  = () => openModal(null);
@@ -443,6 +434,9 @@ $('mSave').onclick = () => {
   const b = readModal();
   if (!b.guest){ alert('Укажите имя гостя'); return; }
   if (!b.start || !b.end || nights(b.start, b.end) < 1){ alert('Дата выезда должна быть позже даты заезда'); return; }
+  if (b.start < JAN_FIRST || b.start > JAN_LAST || b.end > FEB_FIRST){
+    alert(`Шахматка только на январь ${view.y}: заезд 01.01–31.01, выезд не позже 01.02`); return;
+  }
   const clash = overlaps(b.room, b.start, b.end, editId);
   if (clash){
     alert(`Номер ${b.room} уже занят: ${clash.guest}, ${fmt(clash.start)} → ${fmt(clash.end)}`);
@@ -463,19 +457,14 @@ $('mDelete').onclick = () => {
 };
 
 /* =========================================================
-   Настройки: категории, цены, номера
+   Настройки: список номеров (цены фиксированные)
    ========================================================= */
 const settingsBackdrop = $('settingsBackdrop');
 let draft = null;
+$('cfgPrices').innerHTML = CATEGORIES.map(c => `${esc(c.name)} — <b>${money(c.price)}</b>`).join('<br>');
 
 function renderSettings(){
-  $('cfgCats').innerHTML = '<tr><th>Название</th><th style="width:140px">Цена, ₽/ночь</th><th class="x"></th></tr>' +
-    draft.categories.map((c,i) => `<tr>
-      <td><input data-cat="${i}" data-f="name" value="${esc(c.name)}"></td>
-      <td><input data-cat="${i}" data-f="price" type="number" min="0" value="${c.price}"></td>
-      <td><button data-delcat="${i}" title="Удалить">✕</button></td></tr>`).join('');
-
-  const opts = draft.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const opts = CATEGORIES.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('cfgRooms').innerHTML = '<tr><th style="width:90px">№</th><th>Категория</th><th>Кровати / описание</th><th class="x"></th></tr>' +
     draft.rooms.map((r,i) => `<tr>
       <td><input data-room="${i}" data-f="num" type="number" min="1" value="${r.num}"></td>
@@ -487,32 +476,23 @@ function renderSettings(){
 
 settingsBackdrop.addEventListener('input', e => {
   const el = e.target, f = el.dataset.f;
-  if (el.dataset.cat !== undefined){
-    draft.categories[el.dataset.cat][f] = f === 'price' ? Math.max(0, Number(el.value) || 0) : el.value;
-  } else if (el.dataset.room !== undefined){
+  if (el.dataset.room !== undefined){
     draft.rooms[el.dataset.room][f] = f === 'num' ? Number(el.value) : el.value;
   }
 });
 settingsBackdrop.addEventListener('click', e => {
-  const dc = e.target.dataset.delcat, dr = e.target.dataset.delroom;
-  if (dc !== undefined){
-    const c = draft.categories[dc];
-    if (draft.rooms.some(r => r.cat === c.id)){ alert('Сначала перенесите или удалите номера этой категории'); return; }
-    draft.categories.splice(dc, 1); renderSettings();
-  }
+  const dr = e.target.dataset.delroom;
   if (dr !== undefined){ draft.rooms.splice(dr, 1); renderSettings(); }
 });
 
 $('settingsBtn').onclick = () => {
-  draft = structuredClone({ categories: state.categories, rooms: sortedRooms() });
+  draft = structuredClone({ rooms: sortedRooms() });
   renderSettings();
   settingsBackdrop.classList.add('open');
 };
-$('cfgAddCat').onclick = () => { draft.categories.push({ id: uid(), name: 'Новая категория', price: 0 }); renderSettings(); };
 $('cfgAddRoom').onclick = () => {
-  if (!draft.categories.length){ alert('Сначала добавьте категорию'); return; }
   const next = Math.max(0, ...draft.rooms.map(r => r.num || 0)) + 1;
-  draft.rooms.push({ num: next, cat: draft.categories[draft.categories.length-1].id, bed: '' });
+  draft.rooms.push({ num: next, cat: CATEGORIES[CATEGORIES.length-1].id, bed: '' });
   renderSettings();
 };
 $('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
@@ -521,12 +501,10 @@ $('cfgSave').onclick = () => {
   const nums = draft.rooms.map(r => r.num);
   if (nums.some(n => !Number.isInteger(n) || n < 1)){ alert('Номер комнаты должен быть целым числом больше 0'); return; }
   if (new Set(nums).size !== nums.length){ alert('Номера комнат не должны повторяться'); return; }
-  if (draft.categories.some(c => !c.name.trim())){ alert('У каждой категории должно быть название'); return; }
 
   const lost = state.bookings.filter(b => !nums.includes(b.room));
   if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
 
-  state.categories = draft.categories;
   state.rooms = draft.rooms;
   state.bookings = state.bookings.filter(b => nums.includes(b.room));
   saveState();
@@ -556,9 +534,9 @@ $('importFile').onchange = e => {
   if (!file) return;
   file.text().then(txt => {
     const data = JSON.parse(txt);
-    if (!data.rooms || !data.categories) throw new Error();
+    if (!validState(data)) throw new Error();
     if (!confirm('Заменить текущие данные данными из файла?')) return;
-    state = Object.assign(structuredClone(DEFAULT_STATE), data);
+    state = { rooms: data.rooms, bookings: data.bookings };
     saveState(); renderAll();
   }).catch(() => alert('Не удалось прочитать файл'));
   e.target.value = '';
