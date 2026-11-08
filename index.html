@@ -32,23 +32,23 @@
   .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px}
 
   .wrap{overflow:auto;background:var(--card);border:1px solid var(--line);max-height:calc(100vh - 190px)}
-  table.chess{border-collapse:collapse;font-size:13px;user-select:none;min-width:100%}
-  .chess th,.chess td{border:1px solid var(--line);padding:0;height:22px;text-align:center}
-  .chess td.day,.chess th.day{min-width:30px;width:30px}
+  table.chess{border-collapse:collapse;font-size:14px;user-select:none;width:100%;min-width:1180px;table-layout:fixed}
+  .chess th,.chess td{border:1px solid var(--line);padding:0;height:30px;text-align:center}
+  .chess thead th.day,.chess tfoot th.day{font-size:16px}
   .chess thead th,.chess tfoot th{background:#fff;font-weight:normal;position:sticky;z-index:2}
-  .chess thead tr:nth-child(1) th{top:0;height:30px;font-size:18px;font-weight:bold}
-  .chess thead tr:nth-child(2) th{top:30px}
-  .chess thead tr:nth-child(3) th{top:52px;background:var(--head)}
+  .chess thead tr:nth-child(1) th{top:0;height:32px;font-size:18px;font-weight:bold}
+  .chess thead tr:nth-child(2) th{top:32px;font-weight:bold}
+  .chess thead tr:nth-child(3) th{top:62px;background:var(--head)}
   .chess tfoot th{background:var(--head)}
   .chess tfoot tr:last-child th{background:#fff}
   .chess th.sun{font-weight:bold}
   .chess .room{position:sticky;left:0;z-index:1;background:#fff;text-align:left;padding:0 8px;
-               white-space:nowrap;min-width:210px;font-weight:normal}
+               white-space:nowrap;width:64px;font-weight:bold;font-size:15px}
   .chess thead .room,.chess tfoot .room{z-index:3;text-align:center}
   .chess thead tr:nth-child(1) .room{text-decoration:underline}
-  .chess thead tr:nth-child(3) .room{font-size:16px;font-weight:bold}
-  .chess tr.cat td{background:var(--cat);text-align:left;font-weight:bold;padding:0 8px}
-  .chess tr.cat td.room{background:var(--cat)}
+  .chess thead tr:nth-child(3) .room{font-size:13px;font-weight:bold}
+  .chess tr.cat td{background:var(--cat);text-align:left;font-weight:bold;padding:0 8px;height:26px}
+  .chess tr.cat span{position:sticky;left:8px}
   .chess tr.cat small{font-weight:normal;color:#334155;margin-left:8px}
   .chess td.free{cursor:cell}
   .chess td.free:hover{background:#eef2ff}
@@ -56,7 +56,7 @@
   .chess td.today,.chess th.today{background:var(--today)!important}
   .chess td.sel{background:#c7d2fe!important}
   .chess td.bk{padding:2px 1px;cursor:pointer}
-  .bar{height:18px;border-radius:4px;color:#fff;font-size:12px;line-height:18px;padding:0 6px;
+  .bar{height:24px;border-radius:4px;color:#fff;font-size:13px;line-height:24px;padding:0 6px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;background:var(--booked)}
   .bar.in{background:var(--in)} .bar.out{background:var(--out)}
   .bar.debt{box-shadow:inset 4px 0 0 var(--debt)}
@@ -273,10 +273,10 @@ function renderChess(){
   for (const cat of CATEGORIES){
     const list = rooms.filter(r => r.cat === cat.id);
     if (!list.length) continue;
-    html += `<tr class="cat"><td class="room">${esc(cat.name)}<small>${money(cat.price)}</small></td><td colspan="${days}"></td></tr>`;
+    html += `<tr class="cat"><td colspan="${days + 1}"><span>${esc(cat.name)}<small>${money(cat.price)}</small></span></td></tr>`;
     for (const r of list){
       const bks = state.bookings.filter(b => b.room === r.num && b.start < afterLast && b.end > first);
-      html += `<tr><th class="room"># ${r.num}${r.bed ? ' (' + esc(r.bed) + ')' : ''}</th>`;
+      html += `<tr><th class="room"${r.bed ? ` title="${esc(r.bed)}"` : ''}>№ ${r.num}</th>`;
       let d = 1;
       while (d <= days){
         const s = dayInfo[d-1].s;
