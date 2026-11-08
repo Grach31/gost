@@ -144,7 +144,7 @@
     </div>
     <div class="row">
       <label>Цена за ночь, ₽<input id="mPrice" type="number" readonly tabindex="-1" style="background:var(--bg)"></label>
-      <label>Оплачено, ₽<input id="mPaid" type="number" min="0"></label>
+      <label>Предоплата, ₽<input id="mPaid" type="number" min="0"></label>
     </div>
     <label>Заметка<textarea id="mNote"></textarea></label>
     <div class="sum" id="mSum"></div>
@@ -287,7 +287,7 @@ function renderChess(){
           const contL = b.start < s ? ' cont-l' : '';
           const contR = d + span > days && b.end > afterLast ? ' cont-r' : '';
           const tip = `${b.guest}\n${fmt(b.start)} → ${fmt(b.end)} (${nights(b.start,b.end)} ноч.)\n${STATUS_NAMES[b.status]} · ${money(total(b))}` +
-                      (debt(b) ? `\nДолг: ${money(debt(b))}` : '') + (b.phone ? `\n${b.phone}` : '');
+                      `\nПредоплата: ${money(b.paid)}` + (debt(b) ? `\nДолг: ${money(debt(b))}` : '') + (b.phone ? `\n${b.phone}` : '');
           html += `<td class="bk" colspan="${span}" data-id="${b.id}" title="${esc(tip)}">` +
                   `<div class="bar ${b.status}${debt(b) ? ' debt' : ''}${contL}${contR}">${esc(b.guest)}</div></td>`;
           d += span;
@@ -310,26 +310,13 @@ function renderChess(){
 }
 
 function renderStats(days, first, afterLast){
-  let sold = 0, revenue = 0, arrivals = 0;
-  for (const b of state.bookings){
-    if (!(b.start < afterLast && b.end > first)) continue;
-    const s = b.start > first ? b.start : first;
-    const e = b.end < afterLast ? b.end : afterLast;
-    const n = nights(s, e);
-    sold += n;
-    revenue += n * priceOf(b.room);
-    if (b.start >= first) arrivals++;
-  }
-  const capacity = state.rooms.length * days;
-  const load = capacity ? Math.round(sold / capacity * 100) : 0;
+  const arrivals = state.bookings.filter(b => b.start >= first && b.start < afterLast).length;
   const totalDebt = state.bookings.reduce((s,b) => s + debt(b), 0);
+  const prepaid   = state.bookings.reduce((s,b) => s + (Number(b.paid) || 0), 0);
   $('stats').innerHTML = `
-    <div class="stat">Загрузка за январь<b>${load}%</b></div>
-    <div class="stat">Продано ночей<b>${sold}</b></div>
-    <div class="stat">Свободно ночей<b>${capacity - sold}</b></div>
-    <div class="stat">Выручка за январь<b>${money(revenue)}</b></div>
     <div class="stat">Заездов<b>${arrivals}</b></div>
-    <div class="stat">Общий долг<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>`;
+    <div class="stat">Общий долг<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>
+    <div class="stat">Предоплата<b style="color:var(--in)">${money(prepaid)}</b></div>`;
 }
 
 function renderAll(){ renderChess(); }
@@ -423,7 +410,7 @@ function updateModalSum(){
   const b = readModal(), rest = debt(b);
   $('mPrice').value = priceOf(b.room);
   $('mSum').innerHTML = `Ночей: <b>${nights(b.start, b.end)}</b> · Итого: <b>${money(total(b))}</b> · ` +
-    (rest ? `Осталось оплатить: <b style="color:var(--debt)">${money(rest)}</b>` : `<b style="color:var(--in)">Оплачено</b>`);
+    (rest ? `Осталось оплатить: <b style="color:var(--debt)">${money(rest)}</b>` : `<b style="color:var(--in)">Оплачено полностью</b>`);
 }
 ['mIn','mOut','mPaid','mRoom'].forEach(id => $(id).addEventListener('input', updateModalSum));
 
