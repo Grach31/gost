@@ -266,7 +266,22 @@ const DEFAULT_STATE = {
 
 /* Данные годятся, только если все номера относятся к известным категориям */
 function categoriesOf(s){
-  return s.categories === undefined ? CATEGORIES : s.categories;
+  const categories = s.categories === undefined ? CATEGORIES : s.categories;
+  if (!Array.isArray(categories)) return categories;
+  const preferred = [
+    'двухместный',
+    'трехместный',
+    'трехместный+1',
+    'трехместныйкухня',
+    'четырехместныйдвухкомнатный'
+  ];
+  const rank = category => {
+    const name = String(category?.name ?? '').toLocaleLowerCase('ru-RU')
+      .replace(/ё/g, 'е').replace(/[\s()]/g, '');
+    const index = preferred.indexOf(name);
+    return index < 0 ? preferred.length : index;
+  };
+  return [...categories].sort((a,b) => rank(a) - rank(b));
 }
 function validState(s){
   if (!s || !Array.isArray(s.rooms) || !Array.isArray(s.bookings)) return false;
