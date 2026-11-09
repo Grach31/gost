@@ -396,11 +396,13 @@ function renderChess(){
 
 function renderStats(days, first, afterLast){
   const arrivals = state.bookings.filter(b => b.start >= first && b.start < afterLast).length;
+  const totalAmount = state.bookings.reduce((s,b) => s + total(b), 0);
   const totalDebt = state.bookings.reduce((s,b) => s + debt(b), 0);
   const prepaid   = state.bookings.reduce((s,b) => s + (Number(b.paid) || 0), 0);
   $('stats').innerHTML = `
     <div class="stat">Заездов<b>${arrivals}</b></div>
-    <div class="stat">Общий долг<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>
+    <div class="stat">Общая сумма<b>${money(totalAmount)}</b></div>
+    <div class="stat">Остаток<b style="color:${totalDebt ? 'var(--debt)' : 'inherit'}">${money(totalDebt)}</b></div>
     <div class="stat">Предоплата<b style="color:var(--in)">${money(prepaid)}</b></div>`;
 }
 
