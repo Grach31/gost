@@ -220,8 +220,9 @@
 <div class="backdrop" id="settingsBackdrop">
   <div class="modal wide">
     <h2>Настройки</h2>
-    <h3>Цены за ночь</h3>
-    <div class="form-grid" id="cfgPrices"></div>
+    <h3>Категории и цены за ночь</h3>
+    <table class="cfg" id="cfgPrices"></table>
+    <button id="cfgAddCategory" style="margin-top:6px">+ Категория</button>
     <p class="hint">Укажите цены новых категорий перед созданием броней. Изменение цены пересчитывает существующие брони этой категории.</p>
     <h3>Номера</h3>
     <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров. Цена номера зависит от его категории.</p>
@@ -263,12 +264,21 @@ const DEFAULT_STATE = {
 };
 
 /* Данные годятся, только если все номера относятся к известным категориям */
-function validState(s){
-  return s && Array.isArray(s.rooms) && Array.isArray(s.bookings) &&
-         s.rooms.every(r => CATEGORIES.some(c => c.id === r.cat));
+function categoriesOf(s){
+  return s.categories === undefined ? CATEGORIES : s.categories;
 }
-function normalizePrices(prices){
-  return Object.fromEntries(CATEGORIES.map(c => {
+function validState(s){
+  if (!s || !Array.isArray(s.rooms) || !Array.isArray(s.bookings)) return false;
+  const categories = categoriesOf(s);
+  return Array.isArray(categories) && categories.length > 0 &&
+    categories.every(c => c && typeof c.id === 'string' && /^[a-zA-Z0-9_-]+$/.test(c.id) &&
+      typeof c.name === 'string' && c.name.trim().length > 0 &&
+      typeof c.price === 'number' && Number.isFinite(c.price) && c.price >= 0) &&
+    new Set(categories.map(c => c.id)).size === categories.length &&
+    s.rooms.every(r => r && categories.some(c => c.id === r.cat));
+}
+function normalizePrices(prices, categories = CATEGORIES){
+  return Object.fromEntries(categories.map(c => {
     const value = prices?.[c.id];
     return [c.id, typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : c.price];
   }));
@@ -276,7 +286,7 @@ function normalizePrices(prices){
 function loadState(){
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (validState(raw)) return { rooms: raw.rooms, bookings: raw.bookings, prices: normalizePrices(raw.prices) };
+    if (validState(raw)) return { rooms: raw.rooms, bookings: raw.bookings, prices: normalizePrices(raw.prices, categoriesOf(raw)), categories: structuredClone(categoriesOf(raw)) };
   } catch(e){}
   return structuredClone(DEFAULT_STATE);
 }
@@ -297,15 +307,16 @@ const store = {
     state.bookings = state.bookings.filter(x => x.id !== id);
     saveState(); renderAll();
   },
-  setRooms(rooms, prices = state.prices){
+  setRooms(rooms, prices = state.prices, categories = categoriesOf(state)){
     const nums = rooms.map(r => r.num);
     state.rooms = rooms;
-    state.prices = normalizePrices(prices);
+    state.categories = structuredClone(categories);
+    state.prices = normalizePrices(prices, categories);
     state.bookings = state.bookings.filter(b => nums.includes(b.room));
     saveState(); renderAll();
   },
   replaceAll(s){
-    state = { rooms: s.rooms, bookings: s.bookings, prices: normalizePrices(s.prices) };
+    state = { rooms: s.rooms, bookings: s.bookings, prices: normalizePrices(s.prices, categoriesOf(s)), categories: structuredClone(categoriesOf(s)) };
     saveState(); renderAll();
   }
 };
@@ -328,8 +339,8 @@ const fmt = s => s ? s.split('-').reverse().join('.') : '—';
 const money = v => (Number(v) || 0).toLocaleString('ru-RU') + ' ₽';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const catOf  = id  => {
-  const cat = CATEGORIES.find(c => c.id === id) || { name:'—', price:0 };
-  return { ...cat, price: normalizePrices(state.prices)[id] ?? cat.price };
+  const cat = categoriesOf(state).find(c => c.id === id) || { name:'—', price:0 };
+  return { ...cat, price: normalizePrices(state.prices, categoriesOf(state))[id] ?? cat.price };
 };
 const roomOf = num => state.rooms.find(r => r.num === num);
 const priceOf = num => catOf(roomOf(num)?.cat).price;
@@ -338,7 +349,7 @@ const debt   = b => Math.max(0, total(b) - (Number(b.paid) || 0));
 const uid    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 function sortedRooms(){
-  const order = CATEGORIES.map(c => c.id);
+  const order = categoriesOf(state).map(c => c.id);
   return [...state.rooms].sort((a,b) => (order.indexOf(a.cat) - order.indexOf(b.cat)) || (a.num - b.num));
 }
 function overlaps(room, start, end, exceptId){
@@ -369,7 +380,7 @@ function renderChess(){
   </thead><tbody>`;
 
   const rooms = sortedRooms();
-  for (const cat of CATEGORIES){
+  for (const cat of categoriesOf(state)){
     const list = rooms.filter(r => r.cat === cat.id);
     if (!list.length) continue;
     html += `<tr class="cat"><td colspan="${days + 1}"><span>${esc(cat.name)}<small>${money(catOf(cat.id).price)}</small></span></td></tr>`;
@@ -589,8 +600,12 @@ let draft = null;
 
 
 function renderSettings(){
-  $('cfgPrices').innerHTML = CATEGORIES.map(c => `<label>${esc(c.name)}, ₽<input data-price="${c.id}" type="number" min="0" step="0.01" value="${draft.prices[c.id]}"></label>`).join('');
-  const opts = CATEGORIES.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('cfgPrices').innerHTML = '<tr><th>Название категории</th><th>Цена за ночь, ₽</th></tr>' +
+    draft.categories.map((c,i) => `<tr>
+      <td><input data-category="${i}" aria-label="Название категории" value="${esc(c.name)}"></td>
+      <td><input data-price="${c.id}" aria-label="Цена за ночь" type="number" min="0" step="0.01" value="${Number.isFinite(draft.prices[c.id]) ? draft.prices[c.id] : ''}"></td>
+    </tr>`).join('');
+  const opts = draft.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('cfgRooms').innerHTML = '<tr><th style="width:90px">№</th><th>Категория</th><th>Кровати / описание</th><th class="x"></th></tr>' +
     draft.rooms.map((r,i) => `<tr>
       <td><input data-room="${i}" data-f="num" type="number" min="1" value="${r.num}"></td>
@@ -602,6 +617,13 @@ function renderSettings(){
 
 settingsBackdrop.addEventListener('input', e => {
   const el = e.target, f = el.dataset.f;
+  if (el.dataset.category !== undefined){
+    const category = draft.categories[el.dataset.category];
+    category.name = el.value;
+    $('cfgRooms').querySelectorAll('option').forEach(option => {
+      if (option.value === category.id) option.textContent = category.name;
+    });
+  }
   if (el.dataset.price !== undefined){
     draft.prices[el.dataset.price] = el.value.trim() === '' ? NaN : Number(el.value);
   }
@@ -615,18 +637,32 @@ settingsBackdrop.addEventListener('click', e => {
 });
 
 $('settingsBtn').onclick = () => {
-  draft = structuredClone({ rooms: sortedRooms(), prices: normalizePrices(state.prices) });
+  draft = structuredClone({ rooms: sortedRooms(), categories: categoriesOf(state), prices: normalizePrices(state.prices, categoriesOf(state)) });
   renderSettings();
   settingsBackdrop.classList.add('open');
 };
+$('cfgAddCategory').onclick = () => {
+  const category = { id: 'custom_' + uid(), name: 'Новая категория', price: 0 };
+  draft.categories.push(category);
+  draft.prices[category.id] = 0;
+  renderSettings();
+  const input = $('cfgPrices').querySelector(`input[data-category="${draft.categories.length - 1}"]`);
+  input.focus();
+  input.select();
+};
 $('cfgAddRoom').onclick = () => {
   const next = Math.max(0, ...draft.rooms.map(r => r.num || 0)) + 1;
-  draft.rooms.push({ num: next, cat: CATEGORIES[CATEGORIES.length-1].id, bed: '' });
+  draft.rooms.push({ num: next, cat: draft.categories[draft.categories.length-1].id, bed: '' });
   renderSettings();
 };
 $('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
 
 $('cfgSave').onclick = () => {
+  draft.categories.forEach(c => { c.name = c.name.trim(); });
+  if (draft.categories.some(c => !c.name)){ alert('Укажите название каждой категории'); return; }
+  if (new Set(draft.categories.map(c => c.name.toLocaleLowerCase('ru-RU'))).size !== draft.categories.length){
+    alert('Названия категорий не должны повторяться'); return;
+  }
   if (Object.values(draft.prices).some(p => !Number.isFinite(p) || p < 0)){ alert('Укажите корректные цены: число не меньше 0'); return; }
   const nums = draft.rooms.map(r => r.num);
   if (nums.some(n => !Number.isInteger(n) || n < 1)){ alert('Номер комнаты должен быть целым числом больше 0'); return; }
@@ -636,7 +672,7 @@ $('cfgSave').onclick = () => {
   if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
 
   settingsBackdrop.classList.remove('open');
-  store.setRooms(draft.rooms, draft.prices);
+  store.setRooms(draft.rooms, draft.prices, draft.categories);
 };
 $('cfgReset').onclick = () => {
   if (!confirm('Удалить все брони и вернуть номера по умолчанию? Это нельзя отменить.')) return;
