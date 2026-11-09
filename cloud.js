@@ -55,12 +55,26 @@ async function start(){
     remove(id){
       F.deleteDoc(F.doc(bookingsCol, id)).catch(fail);
     },
-    setRooms(rooms, prices = state.prices, categories = categoriesOf(state)){
-      const nums  = rooms.map(r => r.num);
+    async setRooms(rooms, prices = state.prices, categories = categoriesOf(state)){
+      const settings = structuredClone({ rooms, prices: normalizePrices(prices, categories), categories });
+      const nums = settings.rooms.map(r => r.num);
       const batch = F.writeBatch(db);
-      batch.set(roomsDoc, { rooms, prices: normalizePrices(prices, categories), categories });
+      batch.set(roomsDoc, settings);
       state.bookings.filter(b => !nums.includes(b.room)).forEach(b => batch.delete(F.doc(bookingsCol, b.id)));
-      batch.commit().catch(fail);
+      setStatus('pending', 'Сохраняются настройки…');
+      try {
+        await batch.commit();
+        state.rooms = settings.rooms;
+        state.categories = settings.categories;
+        state.prices = settings.prices;
+        state.bookings = state.bookings.filter(b => nums.includes(b.room));
+        saveState();
+        renderAll();
+        setStatus('online', 'Общая база ✓');
+      } catch (err) {
+        setStatus('off', 'Настройки не сохранены');
+        throw err;
+      }
     },
     replaceAll(s){
       /* лимит пачки Firestore — 500 операций, режем на части */

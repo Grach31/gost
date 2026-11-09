@@ -228,6 +228,7 @@
     <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров. Цена номера зависит от его категории.</p>
     <table class="cfg" id="cfgRooms"></table>
     <button id="cfgAddRoom" style="margin-top:6px">+ Номер</button>
+    <p id="cfgError" role="alert" style="color:var(--debt)" hidden></p>
     <div class="modal-actions" style="margin-top:16px">
       <button class="danger left" id="cfgReset">Сбросить всё</button>
       <button id="cfgCancel">Отмена</button>
@@ -637,6 +638,7 @@ settingsBackdrop.addEventListener('click', e => {
 });
 
 $('settingsBtn').onclick = () => {
+  $('cfgError').hidden = true;
   draft = structuredClone({ rooms: sortedRooms(), categories: categoriesOf(state), prices: normalizePrices(state.prices, categoriesOf(state)) });
   renderSettings();
   settingsBackdrop.classList.add('open');
@@ -657,7 +659,7 @@ $('cfgAddRoom').onclick = () => {
 };
 $('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
 
-$('cfgSave').onclick = () => {
+$('cfgSave').onclick = async () => {
   draft.categories.forEach(c => { c.name = c.name.trim(); });
   if (draft.categories.some(c => !c.name)){ alert('Укажите название каждой категории'); return; }
   if (new Set(draft.categories.map(c => c.name.toLocaleLowerCase('ru-RU'))).size !== draft.categories.length){
@@ -671,8 +673,22 @@ $('cfgSave').onclick = () => {
   const lost = state.bookings.filter(b => !nums.includes(b.room));
   if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
 
-  settingsBackdrop.classList.remove('open');
-  store.setRooms(draft.rooms, draft.prices, draft.categories);
+  const saveButton = $('cfgSave');
+  if (saveButton.disabled) return;
+  saveButton.disabled = true;
+  saveButton.textContent = 'Сохраняется…';
+  $('cfgError').hidden = true;
+  const settings = structuredClone(draft);
+  try {
+    await store.setRooms(settings.rooms, settings.prices, settings.categories);
+    settingsBackdrop.classList.remove('open');
+  } catch (err) {
+    $('cfgError').textContent = 'Изменения не сохранены. ' + (err.code || err.message || 'Проверьте подключение и повторите попытку.');
+    $('cfgError').hidden = false;
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Сохранить';
+  }
 };
 $('cfgReset').onclick = () => {
   if (!confirm('Удалить все брони и вернуть номера по умолчанию? Это нельзя отменить.')) return;
@@ -726,6 +742,6 @@ settingsBackdrop.addEventListener('click', e => {
 renderAll();
 </script>
 <script src="firebase-config.js"></script>
-<script type="module" src="cloud.js"></script>
+<script type="module" src="cloud.js?v=20261109-settings-save-2"></script>
 </body>
 </html>
