@@ -206,6 +206,12 @@
       <label>Цена за ночь, ₽<input id="mPrice" type="number" readonly tabindex="-1" style="background:var(--bg)"></label>
       <label>Предоплата, ₽<input id="mPaid" type="number" min="0"></label>
     </div>
+    <label>Доп. место
+      <select id="mExtraBed">
+        <option value="no">Без доп. места</option>
+        <option value="yes">Доп. место — 150 ₽ за ночь</option>
+      </select>
+    </label>
     <label>Заметка<textarea id="mNote"></textarea></label>
     <div class="sum" id="mSum"></div>
     <div class="modal-actions">
@@ -360,7 +366,9 @@ const catOf  = id  => {
 };
 const roomOf = num => state.rooms.find(r => r.num === num);
 const priceOf = num => catOf(roomOf(num)?.cat).price;
-const total  = b => nights(b.start, b.end) * priceOf(b.room);
+const EXTRA_BED_PRICE = 150;
+const extraBedTotal = b => b.extraBed === true ? nights(b.start, b.end) * EXTRA_BED_PRICE : 0;
+const total  = b => nights(b.start, b.end) * priceOf(b.room) + extraBedTotal(b);
 const debt   = b => Math.max(0, total(b) - (Number(b.paid) || 0));
 const uid    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
@@ -548,6 +556,7 @@ function openModal(id, preset = {}){
   $('mIn').value     = b?.start  || preset.start || JAN_FIRST;
   $('mOut').value    = b?.end    || preset.end   || addDays($('mIn').value, 1);
   $('mPaid').value   = b?.paid   || 0;
+  $('mExtraBed').value = b?.extraBed === true ? 'yes' : 'no';
   $('mNote').value   = b?.note   || '';
   $('mDelete').style.display = b ? '' : 'none';
   updateModalSum();
@@ -570,16 +579,18 @@ function readModal(){
     start:  $('mIn').value,
     end:    $('mOut').value,
     paid:   Math.max(0, Number($('mPaid').value) || 0),
+    extraBed: $('mExtraBed').value === 'yes',
     note:   $('mNote').value.trim()
   };
 }
 function updateModalSum(){
   const b = readModal(), rest = debt(b);
   $('mPrice').value = priceOf(b.room);
-  $('mSum').innerHTML = `Ночей: <b>${nights(b.start, b.end)}</b> · Итого: <b>${money(total(b))}</b> · ` +
+  $('mSum').innerHTML = `Ночей: <b>${nights(b.start, b.end)}</b> · ` +
+    (b.extraBed ? `Доп. место: <b>${money(extraBedTotal(b))}</b> · ` : '') + `Итого: <b>${money(total(b))}</b> · ` +
     (rest ? `Осталось оплатить: <b style="color:var(--debt)">${money(rest)}</b>` : `<b style="color:var(--in)">Оплачено полностью</b>`);
 }
-['mIn','mOut','mPaid','mRoom'].forEach(id => $(id).addEventListener('input', updateModalSum));
+['mIn','mOut','mPaid','mRoom','mExtraBed'].forEach(id => $(id).addEventListener('input', updateModalSum));
 
 $('mCancel').onclick = closeModal;
 $('newBtn').onclick  = () => openModal(null);
