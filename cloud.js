@@ -55,10 +55,10 @@ async function start(){
     remove(id){
       F.deleteDoc(F.doc(bookingsCol, id)).catch(fail);
     },
-    setRooms(rooms){
+    setRooms(rooms, prices = state.prices){
       const nums  = rooms.map(r => r.num);
       const batch = F.writeBatch(db);
-      batch.set(roomsDoc, { rooms });
+      batch.set(roomsDoc, { rooms, prices: normalizePrices(prices) });
       state.bookings.filter(b => !nums.includes(b.room)).forEach(b => batch.delete(F.doc(bookingsCol, b.id)));
       batch.commit().catch(fail);
     },
@@ -67,7 +67,7 @@ async function start(){
       const ops = [];
       state.bookings.forEach(b => ops.push(batch => batch.delete(F.doc(bookingsCol, b.id))));
       s.bookings.forEach(b => { const { id, ...data } = b; ops.push(batch => batch.set(F.doc(bookingsCol, id), data)); });
-      ops.push(batch => batch.set(roomsDoc, { rooms: s.rooms }));
+      ops.push(batch => batch.set(roomsDoc, { rooms: s.rooms, prices: normalizePrices(s.prices) }));
       for (let i = 0; i < ops.length; i += 450){
         const batch = F.writeBatch(db);
         ops.slice(i, i + 450).forEach(op => op(batch));
@@ -104,7 +104,7 @@ async function start(){
       logoutBtn.hidden = true;
       loginBackdrop.classList.add('open');
       setStatus('off', 'Не выполнен вход');
-      state = { rooms: structuredClone(DEFAULT_STATE.rooms), bookings: [] };
+      state = { rooms: structuredClone(DEFAULT_STATE.rooms), bookings: [], prices: {} };
       renderAll();
       return;
     }
@@ -112,12 +112,12 @@ async function start(){
     loginBackdrop.classList.remove('open');
     logoutBtn.hidden = false;
     setStatus('pending', 'Подключение…');
-    state = { rooms: structuredClone(DEFAULT_STATE.rooms), bookings: [] };
+    state = { rooms: structuredClone(DEFAULT_STATE.rooms), bookings: [], prices: {} };
     renderAll();
 
     unsubs.push(F.onSnapshot(roomsDoc, snap => {
       const rooms = snap.exists() ? snap.data().rooms : null;
-      if (rooms && validState({ rooms, bookings: [] })){ state.rooms = rooms; renderAll(); }
+      if (rooms && validState({ rooms, bookings: [] })){ state.rooms = rooms; state.prices = normalizePrices(snap.data().prices); saveState(); renderAll(); }
     }, err => setStatus('off', 'Нет доступа: ' + err.code)));
 
     let checkedMigration = false;

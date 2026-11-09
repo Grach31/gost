@@ -220,8 +220,9 @@
 <div class="backdrop" id="settingsBackdrop">
   <div class="modal wide">
     <h2>Настройки</h2>
-    <h3>Цены за ночь (фиксированные)</h3>
-    <p class="hint" id="cfgPrices"></p>
+    <h3>Цены за ночь</h3>
+    <div class="form-grid" id="cfgPrices"></div>
+    <p class="hint">Укажите цены новых категорий перед созданием броней. Изменение цены пересчитывает существующие брони этой категории.</p>
     <h3>Номера</h3>
     <p class="hint">Номера показываются в шахматке по категориям, в порядке номеров. Цена номера зависит от его категории.</p>
     <table class="cfg" id="cfgRooms"></table>
@@ -239,17 +240,20 @@
    Состояние
    ========================================================= */
 const STORAGE_KEY = 'gost-chess-v2';
-/* Фиксированные цены за ночь — в настройках не меняются */
+/* Начальные цены за ночь; изменения сохраняются в настройках. */
 const CATEGORIES = [
   { id:'double', name:'Двухместный',                    price:1500 },
   { id:'triple', name:'Трехместный',                    price:1700 },
-  { id:'quad',   name:'Четырехместный (двухкомнатный)', price:2000 }
+  { id:'quad',   name:'Четырехместный (двухкомнатный)', price:2000 },
+  { id:'three_room_kitchen', name:'Трёхкомнатный (кухня)', price:0 },
+  { id:'quad_standard', name:'Четырёхместный', price:0 }
 ];
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const WD = ['вс','пн','вт','ср','чт','пт','сб'];
 const STATUS_NAMES = { booked:'Бронь', in:'Заселён', out:'Выехал' };
 
 const DEFAULT_STATE = {
+  prices: {},
   rooms: [
     ...[1,2,3,4,5,6,7,8].map(num   => ({ num, cat:'double', bed:'' })),
     ...[9,10,11,12,13,14].map(num  => ({ num, cat:'triple', bed:'' })),
@@ -258,15 +262,21 @@ const DEFAULT_STATE = {
   bookings: []  // { id, room, start, end (дата выезда), guest, phone, people, paid, status, note }
 };
 
-/* Данные годятся, только если все номера относятся к нашим трём категориям */
+/* Данные годятся, только если все номера относятся к известным категориям */
 function validState(s){
   return s && Array.isArray(s.rooms) && Array.isArray(s.bookings) &&
          s.rooms.every(r => CATEGORIES.some(c => c.id === r.cat));
 }
+function normalizePrices(prices){
+  return Object.fromEntries(CATEGORIES.map(c => {
+    const value = prices?.[c.id];
+    return [c.id, typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : c.price];
+  }));
+}
 function loadState(){
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (validState(raw)) return { rooms: raw.rooms, bookings: raw.bookings };
+    if (validState(raw)) return { rooms: raw.rooms, bookings: raw.bookings, prices: normalizePrices(raw.prices) };
   } catch(e){}
   return structuredClone(DEFAULT_STATE);
 }
@@ -287,14 +297,15 @@ const store = {
     state.bookings = state.bookings.filter(x => x.id !== id);
     saveState(); renderAll();
   },
-  setRooms(rooms){
+  setRooms(rooms, prices = state.prices){
     const nums = rooms.map(r => r.num);
     state.rooms = rooms;
+    state.prices = normalizePrices(prices);
     state.bookings = state.bookings.filter(b => nums.includes(b.room));
     saveState(); renderAll();
   },
   replaceAll(s){
-    state = { rooms: s.rooms, bookings: s.bookings };
+    state = { rooms: s.rooms, bookings: s.bookings, prices: normalizePrices(s.prices) };
     saveState(); renderAll();
   }
 };
@@ -316,7 +327,10 @@ const nights = (a,b) => (a && b) ? Math.max(0, Math.round((toUTC(b) - toUTC(a)) 
 const fmt = s => s ? s.split('-').reverse().join('.') : '—';
 const money = v => (Number(v) || 0).toLocaleString('ru-RU') + ' ₽';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const catOf  = id  => CATEGORIES.find(c => c.id === id) || { name:'—', price:0 };
+const catOf  = id  => {
+  const cat = CATEGORIES.find(c => c.id === id) || { name:'—', price:0 };
+  return { ...cat, price: normalizePrices(state.prices)[id] ?? cat.price };
+};
 const roomOf = num => state.rooms.find(r => r.num === num);
 const priceOf = num => catOf(roomOf(num)?.cat).price;
 const total  = b => nights(b.start, b.end) * priceOf(b.room);
@@ -358,7 +372,7 @@ function renderChess(){
   for (const cat of CATEGORIES){
     const list = rooms.filter(r => r.cat === cat.id);
     if (!list.length) continue;
-    html += `<tr class="cat"><td colspan="${days + 1}"><span>${esc(cat.name)}<small>${money(cat.price)}</small></span></td></tr>`;
+    html += `<tr class="cat"><td colspan="${days + 1}"><span>${esc(cat.name)}<small>${money(catOf(cat.id).price)}</small></span></td></tr>`;
     for (const r of list){
       const bks = state.bookings.filter(b => b.room === r.num && b.start < afterLast && b.end > first);
       html += `<tr><th class="room"${r.bed ? ` title="${esc(r.bed)}"` : ''}>№ ${r.num}</th>`;
@@ -568,13 +582,14 @@ $('mDelete').onclick = () => {
 };
 
 /* =========================================================
-   Настройки: список номеров (цены фиксированные)
+   Настройки: категории, цены и список номеров
    ========================================================= */
 const settingsBackdrop = $('settingsBackdrop');
 let draft = null;
-$('cfgPrices').innerHTML = CATEGORIES.map(c => `${esc(c.name)} — <b>${money(c.price)}</b>`).join('<br>');
+
 
 function renderSettings(){
+  $('cfgPrices').innerHTML = CATEGORIES.map(c => `<label>${esc(c.name)}, ₽<input data-price="${c.id}" type="number" min="0" step="0.01" value="${draft.prices[c.id]}"></label>`).join('');
   const opts = CATEGORIES.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('cfgRooms').innerHTML = '<tr><th style="width:90px">№</th><th>Категория</th><th>Кровати / описание</th><th class="x"></th></tr>' +
     draft.rooms.map((r,i) => `<tr>
@@ -587,6 +602,9 @@ function renderSettings(){
 
 settingsBackdrop.addEventListener('input', e => {
   const el = e.target, f = el.dataset.f;
+  if (el.dataset.price !== undefined){
+    draft.prices[el.dataset.price] = el.value.trim() === '' ? NaN : Number(el.value);
+  }
   if (el.dataset.room !== undefined){
     draft.rooms[el.dataset.room][f] = f === 'num' ? Number(el.value) : el.value;
   }
@@ -597,7 +615,7 @@ settingsBackdrop.addEventListener('click', e => {
 });
 
 $('settingsBtn').onclick = () => {
-  draft = structuredClone({ rooms: sortedRooms() });
+  draft = structuredClone({ rooms: sortedRooms(), prices: normalizePrices(state.prices) });
   renderSettings();
   settingsBackdrop.classList.add('open');
 };
@@ -609,6 +627,7 @@ $('cfgAddRoom').onclick = () => {
 $('cfgCancel').onclick = () => settingsBackdrop.classList.remove('open');
 
 $('cfgSave').onclick = () => {
+  if (Object.values(draft.prices).some(p => !Number.isFinite(p) || p < 0)){ alert('Укажите корректные цены: число не меньше 0'); return; }
   const nums = draft.rooms.map(r => r.num);
   if (nums.some(n => !Number.isInteger(n) || n < 1)){ alert('Номер комнаты должен быть целым числом больше 0'); return; }
   if (new Set(nums).size !== nums.length){ alert('Номера комнат не должны повторяться'); return; }
@@ -617,7 +636,7 @@ $('cfgSave').onclick = () => {
   if (lost.length && !confirm(`У удалённых номеров есть брони (${lost.length} шт.). Удалить их тоже?`)) return;
 
   settingsBackdrop.classList.remove('open');
-  store.setRooms(draft.rooms);
+  store.setRooms(draft.rooms, draft.prices);
 };
 $('cfgReset').onclick = () => {
   if (!confirm('Удалить все брони и вернуть номера по умолчанию? Это нельзя отменить.')) return;
